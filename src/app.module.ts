@@ -19,9 +19,13 @@ dotenv.config();
       port: parseInt(process.env.DB_PORT || '5432', 10),
       username: process.env.DB_USERNAME || 'postgres',
       password: process.env.DB_PASSWORD || '123456',
-      database: process.env.DB_NAME || 'sga',
+      database: process.env.DB_DATABASE || process.env.DB_NAME || 'sga',
       autoLoadEntities: true,
-      synchronize: true,
+      synchronize: false,
+      ssl:
+        process.env.NODE_ENV === 'production'
+          ? { rejectUnauthorized: false }
+          : false,
     }),
     AgentsModule,
     PofModule,
