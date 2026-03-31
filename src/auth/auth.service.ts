@@ -13,6 +13,7 @@ type SafeUser = {
   email: string | null;
   role: string;
   is_active: boolean;
+  agent_id: number | null;
 };
 
 @Injectable()
@@ -44,6 +45,7 @@ export class AuthService {
       email: user.email ?? null,
       role: user.role,
       is_active: user.is_active,
+      agent_id: user.agent_id ?? null,
     };
   }
 
@@ -53,6 +55,7 @@ export class AuthService {
       username: user.username,
       role: user.role,
       full_name: user.full_name,
+      agent_id: user.agent_id,
     };
 
     return {
@@ -64,6 +67,7 @@ export class AuthService {
         email: user.email,
         role: user.role,
         is_active: user.is_active,
+        agent_id: user.agent_id,
       },
     };
   }

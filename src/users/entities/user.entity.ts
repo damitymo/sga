@@ -1,4 +1,11 @@
-import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  JoinColumn,
+} from 'typeorm';
+import { Agent } from '../../agents/entities/agent.entity';
 
 @Entity('users')
 export class User {
@@ -11,8 +18,8 @@ export class User {
   @Column({ unique: true })
   username: string;
 
-  @Column({ unique: true, nullable: true })
-  email: string;
+  @Column({ type: 'varchar', unique: true, nullable: true })
+  email: string | null;
 
   @Column()
   password_hash: string;
@@ -22,6 +29,13 @@ export class User {
 
   @Column({ default: true })
   is_active: boolean;
+
+  @Column({ type: 'int', nullable: true })
+  agent_id: number | null;
+
+  @ManyToOne(() => Agent, { nullable: true, eager: true })
+  @JoinColumn({ name: 'agent_id' })
+  agent: Agent | null;
 
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   created_at: Date;

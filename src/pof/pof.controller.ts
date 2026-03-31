@@ -2,11 +2,13 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Param,
   Patch,
   Post,
   Query,
+  Request,
   UseGuards,
 } from '@nestjs/common';
 import { PofService } from './pof.service';
@@ -15,6 +17,17 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 
+type AuthenticatedRequest = {
+  user: {
+    id: number;
+    userId: number;
+    username: string;
+    full_name: string;
+    role: string;
+    agent_id?: number | null;
+  };
+};
+
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('pof')
 export class PofController {
@@ -22,11 +35,20 @@ export class PofController {
 
   @Get()
   findAll(
+    @Request() req: AuthenticatedRequest,
     @Query('plaza') plaza?: string,
     @Query('docente') docente?: string,
     @Query('materia') materia?: string,
     @Query('curso') curso?: string,
   ) {
+    const user = req.user;
+
+    if (user.role === 'AGENTE') {
+      throw new ForbiddenException(
+        'El rol AGENTE no puede consultar la POF general.',
+      );
+    }
+
     return this.pofService.findAll({
       plaza,
       docente,
@@ -36,28 +58,47 @@ export class PofController {
   }
 
   @Get('plaza/:plazaNumber')
-  findByPlazaNumber(@Param('plazaNumber') plazaNumber: string) {
+  findByPlazaNumber(
+    @Request() req: AuthenticatedRequest,
+    @Param('plazaNumber') plazaNumber: string,
+  ) {
+    const user = req.user;
+
+    if (user.role === 'AGENTE') {
+      throw new ForbiddenException(
+        'El rol AGENTE no puede consultar plazas de la POF.',
+      );
+    }
+
     return this.pofService.findByPlazaNumber(plazaNumber);
   }
 
   @Get(':id/history')
-  getHistory(@Param('id') id: string) {
+  getHistory(@Request() req: AuthenticatedRequest, @Param('id') id: string) {
+    const user = req.user;
+
+    if (user.role === 'AGENTE') {
+      throw new ForbiddenException(
+        'El rol AGENTE no puede consultar historial de POF.',
+      );
+    }
+
     return this.pofService.getHistory(Number(id));
   }
 
-  @Roles('ADMINISTRATIVO')
+  @Roles('ADMIN', 'ADMINISTRATIVO')
   @Post()
   create(@Body() body: Partial<PofPosition>) {
     return this.pofService.create(body);
   }
 
-  @Roles('ADMINISTRATIVO')
+  @Roles('ADMIN', 'ADMINISTRATIVO')
   @Patch(':id')
   update(@Param('id') id: string, @Body() body: Partial<PofPosition>) {
     return this.pofService.update(Number(id), body);
   }
 
-  @Roles('ADMINISTRATIVO')
+  @Roles('ADMIN', 'ADMINISTRATIVO')
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.pofService.remove(Number(id));

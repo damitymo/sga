@@ -1,9 +1,29 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  ForbiddenException,
+  Get,
+  Param,
+  Request,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { AttendanceService } from './attendance.service';
 import { AttendanceRecord } from './entities/attendance-record.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
+
+type AuthenticatedRequest = {
+  user: {
+    id: number;
+    userId: number;
+    username: string;
+    full_name: string;
+    role: string;
+    agent_id?: number | null;
+  };
+};
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('attendance')
@@ -11,16 +31,48 @@ export class AttendanceController {
   constructor(private readonly attendanceService: AttendanceService) {}
 
   @Get()
-  findAll() {
+  findAll(@Request() req: AuthenticatedRequest) {
+    const user = req.user;
+
+    if (user.role === 'AGENTE') {
+      if (!user.agent_id) {
+        throw new ForbiddenException(
+          'El usuario AGENTE no está vinculado a un docente/agente.',
+        );
+      }
+
+      return this.attendanceService.findByAgent(user.agent_id);
+    }
+
     return this.attendanceService.findAll();
   }
 
   @Get('agent/:agentId')
-  findByAgent(@Param('agentId') agentId: string) {
-    return this.attendanceService.findByAgent(Number(agentId));
+  findByAgent(
+    @Request() req: AuthenticatedRequest,
+    @Param('agentId') agentId: string,
+  ) {
+    const user = req.user;
+    const targetAgentId = Number(agentId);
+
+    if (user.role === 'AGENTE') {
+      if (!user.agent_id) {
+        throw new ForbiddenException(
+          'El usuario AGENTE no está vinculado a un docente/agente.',
+        );
+      }
+
+      if (user.agent_id !== targetAgentId) {
+        throw new ForbiddenException(
+          'El rol AGENTE solo puede ver su propia asistencia.',
+        );
+      }
+    }
+
+    return this.attendanceService.findByAgent(targetAgentId);
   }
 
-  @Roles('ADMINISTRATIVO')
+  @Roles('ADMIN', 'ADMINISTRATIVO')
   @Post()
   create(@Body() body: Partial<AttendanceRecord>) {
     return this.attendanceService.create(body);
