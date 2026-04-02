@@ -14,6 +14,7 @@ type SafeUser = {
   role: string;
   is_active: boolean;
   agent_id: number | null;
+  must_change_password: boolean;
 };
 
 @Injectable()
@@ -46,6 +47,7 @@ export class AuthService {
       role: user.role,
       is_active: user.is_active,
       agent_id: user.agent_id ?? null,
+      must_change_password: user.must_change_password ?? false,
     };
   }
 
@@ -68,6 +70,7 @@ export class AuthService {
         role: user.role,
         is_active: user.is_active,
         agent_id: user.agent_id,
+        must_change_password: user.must_change_password,
       },
     };
   }

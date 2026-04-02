@@ -4,6 +4,8 @@ import {
   Column,
   ManyToOne,
   JoinColumn,
+  CreateDateColumn,
+  UpdateDateColumn,
 } from 'typeorm';
 import { Agent } from '../../agents/entities/agent.entity';
 
@@ -30,6 +32,9 @@ export class User {
   @Column({ default: true })
   is_active: boolean;
 
+  @Column({ default: true })
+  must_change_password: boolean;
+
   @Column({ type: 'int', nullable: true })
   agent_id: number | null;
 
@@ -37,9 +42,9 @@ export class User {
   @JoinColumn({ name: 'agent_id' })
   agent: Agent | null;
 
-  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
+  @CreateDateColumn({ type: 'timestamp' })
   created_at: Date;
 
-  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
+  @UpdateDateColumn({ type: 'timestamp' })
   updated_at: Date;
 }
