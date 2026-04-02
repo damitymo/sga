@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Get,
   Param,
+  ParseIntPipe,
   Request,
   Post,
   UseGuards,
@@ -47,13 +48,25 @@ export class AttendanceController {
     return this.attendanceService.findAll();
   }
 
+  @Get('me/stats')
+  findMyStats(@Request() req: AuthenticatedRequest) {
+    const user = req.user;
+
+    if (!user.agent_id) {
+      throw new ForbiddenException(
+        'El usuario autenticado no está vinculado a un docente/agente.',
+      );
+    }
+
+    return this.attendanceService.getStatsByAgent(user.agent_id);
+  }
+
   @Get('agent/:agentId')
   findByAgent(
     @Request() req: AuthenticatedRequest,
-    @Param('agentId') agentId: string,
+    @Param('agentId', ParseIntPipe) agentId: number,
   ) {
     const user = req.user;
-    const targetAgentId = Number(agentId);
 
     if (user.role === 'AGENTE') {
       if (!user.agent_id) {
@@ -62,14 +75,14 @@ export class AttendanceController {
         );
       }
 
-      if (user.agent_id !== targetAgentId) {
+      if (user.agent_id !== agentId) {
         throw new ForbiddenException(
           'El rol AGENTE solo puede ver su propia asistencia.',
         );
       }
     }
 
-    return this.attendanceService.findByAgent(targetAgentId);
+    return this.attendanceService.findByAgent(agentId);
   }
 
   @Roles('ADMIN', 'ADMINISTRATIVO')

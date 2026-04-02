@@ -4,6 +4,8 @@ import { Repository } from 'typeorm';
 
 import { Agent } from './entities/agent.entity';
 import { AgentAssignment } from '../assignments/entities/agent-assignment.entity';
+import { AttendanceRecord } from '../attendance/entities/attendance-record.entity';
+import { RevistaRecord } from '../revista/entities/revista-record.entity';
 
 type AgentSearchFilters = {
   dni?: string;
@@ -12,6 +14,26 @@ type AgentSearchFilters = {
   materia?: string;
 };
 
+function hasEndDate(value?: Date | string | null): boolean {
+  return value !== null && value !== undefined && String(value).trim() !== '';
+}
+
+function isHistoricalRevista(record: RevistaRecord): boolean {
+  if (hasEndDate(record.end_date)) return true;
+  if (record.is_current === false) return true;
+  return false;
+}
+
+function sortByStartDateDesc<
+  T extends { start_date?: Date | string | null; id?: number },
+>(a: T, b: T): number {
+  const aTime = a.start_date ? new Date(a.start_date).getTime() : 0;
+  const bTime = b.start_date ? new Date(b.start_date).getTime() : 0;
+
+  if (bTime !== aTime) return bTime - aTime;
+  return (b.id ?? 0) - (a.id ?? 0);
+}
+
 @Injectable()
 export class AgentsService {
   constructor(
@@ -19,6 +41,10 @@ export class AgentsService {
     private readonly agentsRepository: Repository<Agent>,
     @InjectRepository(AgentAssignment)
     private readonly assignmentsRepository: Repository<AgentAssignment>,
+    @InjectRepository(AttendanceRecord)
+    private readonly attendanceRepository: Repository<AttendanceRecord>,
+    @InjectRepository(RevistaRecord)
+    private readonly revistaRepository: Repository<RevistaRecord>,
   ) {}
 
   findAll() {
@@ -38,6 +64,28 @@ export class AgentsService {
     return this.agentsRepository.findOne({
       where: { dni, is_active: true },
     });
+  }
+
+  async findBirthdaysByCurrentMonth() {
+    return this.agentsRepository
+      .createQueryBuilder('agent')
+      .where('agent.is_active = :isActive', { isActive: true })
+      .andWhere('agent.birth_date IS NOT NULL')
+      .andWhere(
+        'EXTRACT(MONTH FROM agent.birth_date) = EXTRACT(MONTH FROM CURRENT_DATE)',
+      )
+      .orderBy('EXTRACT(DAY FROM agent.birth_date)', 'ASC')
+      .addOrderBy('agent.full_name', 'ASC')
+      .getMany()
+      .then((items) =>
+        items.map((agent) => ({
+          id: agent.id,
+          full_name: agent.full_name,
+          dni: agent.dni,
+          birth_date: agent.birth_date,
+          day: agent.birth_date ? new Date(agent.birth_date).getDate() : null,
+        })),
+      );
   }
 
   async search(filters: AgentSearchFilters) {
@@ -101,44 +149,39 @@ export class AgentsService {
   async findFullProfile(id: number) {
     const agent = await this.agentsRepository.findOne({
       where: { id, is_active: true },
-      relations: {
-        attendance_records: true,
-        revista_records: {
-          pof_position: true,
-        },
-      },
-      order: {
-        attendance_records: {
-          start_date: 'DESC',
-        },
-        revista_records: {
-          start_date: 'DESC',
-        },
-      },
     });
 
     if (!agent) return null;
 
-    const licencias =
-      agent.attendance_records?.filter(
-        (item) => item.record_type === 'LICENCIA',
-      ) ?? [];
+    const attendanceRecords = await this.attendanceRepository.find({
+      where: { agent_id: id },
+      order: { start_date: 'DESC', id: 'DESC' },
+    });
 
-    const ausentes =
-      agent.attendance_records?.filter(
-        (item) => item.record_type === 'AUSENTE',
-      ) ?? [];
+    const revistaRecords = await this.revistaRepository.find({
+      where: { agent_id: id },
+      order: { start_date: 'DESC', id: 'DESC' },
+    });
 
-    const capacitaciones =
-      agent.attendance_records?.filter(
-        (item) => item.record_type === 'CAPACITACION',
-      ) ?? [];
+    const licencias = attendanceRecords.filter(
+      (item) => item.record_type === 'LICENCIA',
+    );
 
-    const revista_actual =
-      agent.revista_records?.filter((item) => item.is_current) ?? [];
+    const ausentes = attendanceRecords.filter(
+      (item) => item.record_type === 'AUSENTE',
+    );
 
-    const revista_historica =
-      agent.revista_records?.filter((item) => !item.is_current) ?? [];
+    const capacitaciones = attendanceRecords.filter(
+      (item) => item.record_type === 'CAPACITACION',
+    );
+
+    const revista_actual = revistaRecords
+      .filter((item) => !isHistoricalRevista(item))
+      .sort(sortByStartDateDesc);
+
+    const revista_historica = revistaRecords
+      .filter((item) => isHistoricalRevista(item))
+      .sort(sortByStartDateDesc);
 
     return {
       ...agent,

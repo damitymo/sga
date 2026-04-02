@@ -46,10 +46,15 @@ export class AgentsController {
       }
 
       const ownAgent = await this.agentsService.findOne(user.agent_id);
-      return [ownAgent];
+      return ownAgent ? [ownAgent] : [];
     }
 
     return this.agentsService.findAll();
+  }
+
+  @Get('birthdays/month')
+  findBirthdaysByCurrentMonth() {
+    return this.agentsService.findBirthdaysByCurrentMonth();
   }
 
   @Get('search')

@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   Get,
   Param,
+  ParseIntPipe,
   Request,
   UseGuards,
 } from '@nestjs/common';
@@ -43,13 +44,38 @@ export class RevistaController {
     return this.revistaService.findAll();
   }
 
+  @Get('me/current')
+  findMyCurrent(@Request() req: AuthenticatedRequest) {
+    const user = req.user;
+
+    if (!user.agent_id) {
+      throw new ForbiddenException(
+        'El usuario autenticado no está vinculado a un docente/agente.',
+      );
+    }
+
+    return this.revistaService.findCurrentByAgent(user.agent_id);
+  }
+
+  @Get('me/historical')
+  findMyHistorical(@Request() req: AuthenticatedRequest) {
+    const user = req.user;
+
+    if (!user.agent_id) {
+      throw new ForbiddenException(
+        'El usuario autenticado no está vinculado a un docente/agente.',
+      );
+    }
+
+    return this.revistaService.findHistoricalByAgent(user.agent_id);
+  }
+
   @Get('agent/:agentId')
   findByAgent(
     @Request() req: AuthenticatedRequest,
-    @Param('agentId') agentId: string,
+    @Param('agentId', ParseIntPipe) agentId: number,
   ) {
     const user = req.user;
-    const targetAgentId = Number(agentId);
 
     if (user.role === 'AGENTE') {
       if (!user.agent_id) {
@@ -58,23 +84,22 @@ export class RevistaController {
         );
       }
 
-      if (user.agent_id !== targetAgentId) {
+      if (user.agent_id !== agentId) {
         throw new ForbiddenException(
           'El rol AGENTE solo puede ver su propia revista.',
         );
       }
     }
 
-    return this.revistaService.findByAgent(targetAgentId);
+    return this.revistaService.findByAgent(agentId);
   }
 
   @Get('agent/:agentId/current')
   findCurrentByAgent(
     @Request() req: AuthenticatedRequest,
-    @Param('agentId') agentId: string,
+    @Param('agentId', ParseIntPipe) agentId: number,
   ) {
     const user = req.user;
-    const targetAgentId = Number(agentId);
 
     if (user.role === 'AGENTE') {
       if (!user.agent_id) {
@@ -83,23 +108,22 @@ export class RevistaController {
         );
       }
 
-      if (user.agent_id !== targetAgentId) {
+      if (user.agent_id !== agentId) {
         throw new ForbiddenException(
           'El rol AGENTE solo puede ver su revista actual.',
         );
       }
     }
 
-    return this.revistaService.findCurrentByAgent(targetAgentId);
+    return this.revistaService.findCurrentByAgent(agentId);
   }
 
   @Get('agent/:agentId/historical')
   findHistoricalByAgent(
     @Request() req: AuthenticatedRequest,
-    @Param('agentId') agentId: string,
+    @Param('agentId', ParseIntPipe) agentId: number,
   ) {
     const user = req.user;
-    const targetAgentId = Number(agentId);
 
     if (user.role === 'AGENTE') {
       if (!user.agent_id) {
@@ -108,13 +132,13 @@ export class RevistaController {
         );
       }
 
-      if (user.agent_id !== targetAgentId) {
+      if (user.agent_id !== agentId) {
         throw new ForbiddenException(
           'El rol AGENTE solo puede ver su revista histórica.',
         );
       }
     }
 
-    return this.revistaService.findHistoricalByAgent(targetAgentId);
+    return this.revistaService.findHistoricalByAgent(agentId);
   }
 }
