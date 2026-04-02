@@ -51,12 +51,14 @@ function toDateOnly(value: unknown): string | undefined {
   const text = normalizeString(value);
   if (!text) return undefined;
 
+  const upper = text.toUpperCase();
+
   if (
-    text === '-' ||
-    text.toUpperCase() === 'CONTINUA' ||
-    text.toUpperCase() === 'CONTINUO' ||
-    text.toUpperCase() === 'JUBILADA' ||
-    text.toUpperCase() === 'JUBILADO'
+    upper === '-' ||
+    upper === 'CONTINUA' ||
+    upper === 'CONTINUO' ||
+    upper === 'JUBILADA' ||
+    upper === 'JUBILADO'
   ) {
     return undefined;
   }
@@ -153,24 +155,47 @@ function normalizeCharacterType(
   return 'TITULAR';
 }
 
-async function findAgent(
-  repo: Repository<Agent>,
+type AgentCache = {
+  all: Agent[];
+  byDni: Map<string, Agent>;
+  byName: Map<string, Agent>;
+};
+
+function buildAgentCache(agents: Agent[]): AgentCache {
+  const byDni = new Map<string, Agent>();
+  const byName = new Map<string, Agent>();
+
+  for (const agent of agents) {
+    if (agent.dni) {
+      byDni.set(agent.dni, agent);
+    }
+
+    byName.set(normalizeNameKey(agent.full_name), agent);
+  }
+
+  return { all: agents, byDni, byName };
+}
+
+function findAgentInCache(
+  cache: AgentCache,
   dni?: string,
   name?: string,
-): Promise<Agent | null> {
+): Agent | null {
   if (dni) {
-    const byDni = await repo.findOne({ where: { dni } });
+    const byDni = cache.byDni.get(dni);
     if (byDni) return byDni;
   }
 
   if (!name) return null;
 
-  const all = await repo.find();
+  const normalizedName = normalizeNameKey(name);
+  const exactByName = cache.byName.get(normalizedName);
+  if (exactByName) return exactByName;
 
   let best: Agent | null = null;
   let bestScore = 0;
 
-  for (const agent of all) {
+  for (const agent of cache.all) {
     const score = getScore(name, agent.full_name);
 
     if (score > bestScore) {
@@ -180,6 +205,13 @@ async function findAgent(
   }
 
   return bestScore >= 0.75 ? best : null;
+}
+
+function isDuplicateActiveError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return error.message.includes(
+    'Esa plaza ya está activa para este docente. No se puede designar nuevamente.',
+  );
 }
 
 async function bootstrap() {
@@ -196,17 +228,30 @@ async function bootstrap() {
 
   const workbook = XLSX.readFile(filePath);
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
-
   const rows = XLSX.utils.sheet_to_json<PofRow>(sheet, { defval: '' });
 
   console.log(`📄 Archivo: ${filePath}`);
   console.log(`📚 Hoja: ${workbook.SheetNames[0]}`);
   console.log(`🧾 Filas: ${rows.length}`);
+  console.log('📥 Cargando agentes en memoria...');
+
+  const existingAgents = await agentsRepo.find({
+    select: ['id', 'full_name', 'first_name', 'last_name', 'dni', 'is_active'],
+  });
+
+  const cache = buildAgentCache(existingAgents);
+
+  console.log(`👥 Agentes cargados: ${cache.all.length}`);
+  console.log('🚀 Iniciando procesamiento...');
 
   let createdAgents = 0;
   let createdDesignaciones = 0;
   let createdBajas = 0;
   let skipped = 0;
+  let duplicatesSkipped = 0;
+
+  const processedDesignaciones = new Set<string>();
+  const processedBajas = new Set<string>();
 
   for (let i = 0; i < rows.length; i += 1) {
     const row = rows[i];
@@ -220,17 +265,22 @@ async function bootstrap() {
       continue;
     }
 
-    let agent = await findAgent(agentsRepo, dni, docente);
+    let agent = findAgentInCache(cache, dni, docente);
 
     if (!agent && dni) {
       const split = splitName(docente);
 
-      agent = await agentsRepo.save({
+      const saved = await agentsRepo.save({
         ...split,
         dni,
         is_active: true,
       });
 
+      cache.all.push(saved);
+      if (saved.dni) cache.byDni.set(saved.dni, saved);
+      cache.byName.set(normalizeNameKey(saved.full_name), saved);
+
+      agent = saved;
       createdAgents += 1;
       console.log(`🆕 Creado: ${docente} (${dni})`);
     }
@@ -248,32 +298,64 @@ async function bootstrap() {
       continue;
     }
 
-    await assignmentsService.createByPlazaNumber({
-      agent_id: agent.id,
-      plaza_number: plaza,
-      movement_type: 'DESIGNACION',
-      assignment_date: start,
-      status: 'ACTIVA',
-      character_type: normalizeCharacterType(row['SIT. REVISTA']),
-    });
+    const designacionKey = `${agent.id}|${plaza}|DESIGNACION|${start}`;
 
-    createdDesignaciones += 1;
+    if (!processedDesignaciones.has(designacionKey)) {
+      try {
+        await assignmentsService.createByPlazaNumber({
+          agent_id: agent.id,
+          plaza_number: plaza,
+          movement_type: 'DESIGNACION',
+          assignment_date: start,
+          status: 'ACTIVA',
+          character_type: normalizeCharacterType(row['SIT. REVISTA']),
+        });
 
-    if (end) {
-      await assignmentsService.createByPlazaNumber({
-        agent_id: agent.id,
-        plaza_number: plaza,
-        movement_type: 'BAJA',
-        assignment_date: start,
-        end_date: end,
-        status: 'FINALIZADA',
-        character_type: normalizeCharacterType(row['SIT. REVISTA']),
-      });
-
-      createdBajas += 1;
+        createdDesignaciones += 1;
+        processedDesignaciones.add(designacionKey);
+      } catch (error: unknown) {
+        if (isDuplicateActiveError(error)) {
+          duplicatesSkipped += 1;
+          processedDesignaciones.add(designacionKey);
+        } else {
+          throw error;
+        }
+      }
+    } else {
+      duplicatesSkipped += 1;
     }
 
-    if ((i + 1) % 50 === 0) {
+    if (end) {
+      const bajaKey = `${agent.id}|${plaza}|BAJA|${end}`;
+
+      if (!processedBajas.has(bajaKey)) {
+        try {
+          await assignmentsService.createByPlazaNumber({
+            agent_id: agent.id,
+            plaza_number: plaza,
+            movement_type: 'BAJA',
+            assignment_date: start,
+            end_date: end,
+            status: 'FINALIZADA',
+            character_type: normalizeCharacterType(row['SIT. REVISTA']),
+          });
+
+          createdBajas += 1;
+          processedBajas.add(bajaKey);
+        } catch (error: unknown) {
+          if (isDuplicateActiveError(error)) {
+            duplicatesSkipped += 1;
+            processedBajas.add(bajaKey);
+          } else {
+            throw error;
+          }
+        }
+      } else {
+        duplicatesSkipped += 1;
+      }
+    }
+
+    if ((i + 1) % 25 === 0) {
       console.log(`⏳ Procesadas ${i + 1} de ${rows.length} filas...`);
     }
   }
@@ -282,6 +364,7 @@ async function bootstrap() {
   console.log(`Agentes creados automáticamente: ${createdAgents}`);
   console.log(`Designaciones creadas: ${createdDesignaciones}`);
   console.log(`Bajas creadas: ${createdBajas}`);
+  console.log(`Duplicados salteados: ${duplicatesSkipped}`);
   console.log(`Filas salteadas: ${skipped}`);
 
   await app.close();
