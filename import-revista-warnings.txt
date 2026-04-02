@@ -1,0 +1,149 @@
+Fila 3 | Plaza 50-774 | Docente PAVON, GABRIELA VANESA | DNI - | No se encontró agente
+Fila 4 | Plaza 50-775 | Docente CHAVES, JULIO CERSAR | DNI - | No se encontró agente
+Fila 10 | Plaza 50-780 | Docente OVIEDO GOMEZ, NOELIA | DNI - | No se encontró agente
+Fila 15 | Plaza 50-029 | Docente PAVON, GABRIELA VANESA | DNI - | No se encontró agente
+Fila 16 | Plaza 50-024 | Docente SCHIAPPA PIETRA, CRISTINE IRENE | DNI - | No se encontró agente
+Fila 21 | Plaza 50-026 | Docente ZBINDE, EMILSE BEATRIZ | DNI - | No se encontró agente
+Fila 27 | Plaza 50-038 | Docente PAVON, GABRIELA VANESA | DNI - | No se encontró agente
+Fila 28 | Plaza 50-032 | Docente SCHIAPPA PIETRA, CRISTINE IRENE | DNI - | No se encontró agente
+Fila 33 | Plaza 50-037 | Docente GUERRERO FABRO GUSTAVO | DNI - | No se encontró agente
+Fila 37 | Plaza 50-036 | Docente SIUNSKEVICH,CARLOS RODRIGO | DNI - | No se encontró agente
+Fila 40 | Plaza 50-118 | Docente ROMERO, ROXANA GLADYS | DNI - | No se encontró agente
+Fila 49 | Plaza 50-113 | Docente SIUNSKEVICH,CARLOS RODRIGO | DNI - | No se encontró agente
+Fila 52 | Plaza 50-044 | Docente PAVON, GABRIELA VANESA | DNI - | No se encontró agente
+Fila 53 | Plaza 50-049 | Docente SCHIAPPA PIETRA, CRISTINE IRENE | DNI - | No se encontró agente
+Fila 62 | Plaza 50-050 | Docente SIUNSKEVICH,CARLOS RODRIGO | DNI - | No se encontró agente
+Fila 66 | Plaza 50-126 | Docente BARTLET SERRANO, LUCRECIA LEONOR | DNI - | No se encontró agente
+Fila 68 | Plaza 50-137 | Docente ESCOBAR, MARCELA LETICA | DNI - | No se encontró agente
+Fila 76 | Plaza 50-138 | Docente JUNCO CLAUDIA ANDRIA | DNI - | No se encontró agente
+Fila 78 | Plaza 50-079 | Docente PAVON, GABRIELA VANESA | DNI - | No se encontró agente
+Fila 86 | Plaza 50-080 | Docente ZBINDE, EMILSE BEATRIZ | DNI - | No se encontró agente
+Fila 88 | Plaza 50-078 | Docente SIUNSKEVICH,CARLOS RODRIGO | DNI - | No se encontró agente
+Fila 91 | Plaza 50-088 | Docente PAVON, GABRIELA VANESA | DNI - | No se encontró agente
+Fila 92 | Plaza 50-089 | Docente SCHIAPPA PIETRA, CRISTINE IRENE | DNI - | No se encontró agente
+Fila 100 | Plaza 50-083 | Docente GUERRERO FABRO GUSTAVO | DNI - | No se encontró agente
+Fila 101 | Plaza 50-091 | Docente ZBINDE, EMILSE BEATRIZ | DNI - | No se encontró agente
+Fila 107 | Plaza 50-099 | Docente PAVON, GABRIELA VANESA | DNI - | No se encontró agente
+Fila 108 | Plaza 50-097 | Docente BARTLET SERRANO, LUCRECIA LEONOR | DNI - | No se encontró agente
+Fila 114 | Plaza 50-104 | Docente SCHIAPPA PIETRA, CRISTINE IRENE | DNI - | No se encontró agente
+Fila 120 | Plaza 50-105 | Docente JUNCO CLAUDIA ANDRIA | DNI - | No se encontró agente
+Fila 122 | Plaza 50-147 | Docente ROMERO, ROXANA GLADYS | DNI - | No se encontró agente
+Fila 125 | Plaza 50-139 | Docente SCHIAPPA PIETRA, CRISTINE IRENE | DNI - | No se encontró agente
+Fila 131 | Plaza 50-145 | Docente GONZALEZ ROXANA HAIDEE | DNI - | No se encontró agente
+Fila 132 | Plaza 50-145 | Docente MACIEL, JUAN ANTONIO | DNI - | No se encontró agente
+Fila 135 | Plaza 50-148 | Docente FERNANDEZ, ROXANA ITATI | DNI - | No se encontró agente
+Fila 137 | Plaza 50-143 | Docente SIUNSKEVICH,CARLOS RODRIGO | DNI - | No se encontró agente
+Fila 141 | Plaza 50-161 | Docente ESCOBAR, MARCELA LETICA | DNI - | No se encontró agente
+Fila 143 | Plaza 50-160 | Docente ESCOBAR, MARCELA LETICA | DNI - | No se encontró agente
+Fila 148 | Plaza 50-156 | Docente GONZALEZ ROXANA HAIDEE | DNI - | No se encontró agente
+Fila 149 | Plaza 50-156 | Docente MACIEL, JUAN ANTONIO | DNI - | No se encontró agente
+Fila 153 | Plaza 50-154 | Docente SIUNSKEVICH,CARLOS RODRIGO | DNI - | No se encontró agente
+Fila 154 | Plaza 50-162 | Docente JUNCO CLAUDIA ANDRIA | DNI - | No se encontró agente
+Fila 155 | Plaza 50-798 | Docente GONZALEZ ROXANA HAIDEE | DNI - | No se encontró agente
+Fila 163 | Plaza 50-802 | Docente GONZALEZ ROXANA HAIDEE | DNI - | No se encontró agente
+Fila 164 | Plaza 50-802 | Docente MACIEL, JUAN ANTONIO | DNI - | No se encontró agente
+Fila 165 | Plaza 50-804 | Docente GAUNA TERESITA | DNI - | No se encontró agente
+Fila 166 | Plaza 50-805 | Docente OVIEDO GOMEZ, NOELIA | DNI - | No se encontró agente
+Fila 168 | Plaza 50-806 | Docente JORQUERA JESUS | DNI - | No se encontró agente
+Fila 171 | Plaza 50-185 | Docente PAVON, GABRIELA VANESA | DNI - | No se encontró agente
+Fila 180 | Plaza 50-631 | Docente MACIEL, JUAN ANTONIO | DNI - | No se encontró agente
+Fila 182 | Plaza 50-184 | Docente ZBINDE, EMILSE BEATRIZ | DNI - | No se encontró agente
+Fila 184 | Plaza 50-191 | Docente SIUNSKEVICH,CARLOS RODRIGO | DNI - | No se encontró agente
+Fila 187 | Plaza 50-742 | Docente MACHUCA NESTOR FABIAN | DNI - | No se encontró agente
+Fila 188 | Plaza 50-197 | Docente GOITIA COLOMBO, AMALIA CAROLINA | DNI - | Sin fecha TOMA DE PO válida. Valor recibido: 05/0372014
+Fila 189 | Plaza 50-202 | Docente PAVON, GABRIELA VANESA | DNI - | No se encontró agente
+Fila 202 | Plaza 50-513 | Docente KRAFT, ROMY LILIANA | DNI - | No se encontró agente
+Fila 209 | Plaza 50-749 | Docente MACIEL, JUAN ANTONIO | DNI - | No se encontró agente
+Fila 214 | Plaza 50-166 | Docente SIUNSKEVICH,CARLOS RODRIGO | DNI - | No se encontró agente
+Fila 216 | Plaza 50-222 | Docente PAVON, GABRIELA VANESA | DNI - | No se encontró agente
+Fila 223 | Plaza 50-220 | Docente MACIEL, JUAN ANTONIO | DNI - | No se encontró agente
+Fila 226 | Plaza 50-233 | Docente GOMEZ, ALEJANDRO DAVID | DNI - | No se encontró agente
+Fila 228 | Plaza 50-227 | Docente SIUNSKEVICH,CARLOS RODRIGO | DNI - | No se encontró agente
+Fila 230 | Plaza 50-236 | Docente MACHUCA NESTOR FABIAN | DNI - | No se encontró agente
+Fila 237 | Plaza 50-276 | Docente MARTINEZ, ZUNILDA VICTORIA | DNI - | No se encontró agente
+Fila 243 | Plaza 50-270 | Docente SIUNSKEVICH,CARLOS RODRIGO | DNI - | No se encontró agente
+Fila 245 | Plaza 50-277 | Docente MACHUCA NESTOR FABIAN | DNI - | No se encontró agente
+Fila 247 | Plaza 50-823 | Docente ROMERO, ROXANA GLADYS | DNI - | No se encontró agente
+Fila 253 | Plaza 50-827 | Docente GONZALEZ, ROXANA HAYDEE | DNI - | No se encontró agente
+Fila 254 | Plaza 50-827 | Docente MACIEL, JUAN ANTONIO | DNI - | No se encontró agente
+Fila 256 | Plaza 50-829 | Docente MASSEY, CINTHYA VANESA | DNI - | No se encontró agente
+Fila 257 | Plaza 50-830 | Docente OVIEDO GOMEZ, NOELIA | DNI - | No se encontró agente
+Fila 258 | Plaza 50-832 | Docente SIUNSKEVICH,CARLOS RODRIGO | DNI - | No se encontró agente
+Fila 262 | Plaza 50-337 | Docente DUARTE, MARIANA | DNI - | No se encontró agente
+Fila 275 | Plaza 50-785 | Docente PAVON, GABRIELA VANESA | DNI - | No se encontró agente
+Fila 277 | Plaza 50-789 | Docente LEMES MEDINA, JOHANA ELIZABETH | DNI - | No se encontró agente
+Fila 279 | Plaza 50,-788 | Docente SCHIAPPA PIETRA, CRISTINE IRENE | DNI - | No se encontró agente
+Fila 285 | Plaza 50-795 | Docente FERNÁNDEZ, ANDREA MARIANA | DNI - | No se encontró agente
+Fila 290 | Plaza 50-341 | Docente PAVON, GABRIELA VANESA | DNI - | No se encontró agente
+Fila 293 | Plaza 50-349 | Docente CHAVES, JULIO CERSAR | DNI - | No se encontró agente
+Fila 294 | Plaza 50-349 | Docente PONCE MARIA FERNANDA | DNI - | No se encontró agente
+Fila 304 | Plaza 50-351 | Docente MACHUCA NESTOR FABIAN | DNI - | No se encontró agente
+Fila 311 | Plaza 50-287 | Docente LEMES MEDINA, JOHANA ELIZABETH | DNI - | No se encontró agente
+Fila 315 | Plaza 50-489 | Docente MARTINEZ, SILVINA ROCIO | DNI - | No se encontró agente
+Fila 320 | Plaza 50-518 | Docente PAVON, GABRIELA VANESA | DNI - | No se encontró agente
+Fila 335 | Plaza 50-731 | Docente MACHUCA NESTOR FABIAN | DNI - | No se encontró agente
+Fila 340 | Plaza 50-616 | Docente GONZALEZ, ROXANA HAIDEE | DNI - | Sin fecha TOMA DE PO válida. Valor recibido: -
+Fila 341 | Plaza 50-616 | Docente TOURNIER, ALVARO MANUEL GASTN | DNI - | Sin fecha TOMA DE PO válida. Valor recibido: -
+Fila 343 | Plaza 50-548 | Docente FERNÁNDEZ, ANDREA MARIANA | DNI - | No se encontró agente
+Fila 353 | Plaza 50-732 | Docente MACHUCA NESTOR FABIAN | DNI - | No se encontró agente
+Fila 355 | Plaza 50-733 | Docente REYES GABRIELA BELEN | DNI - | No se encontró agente
+Fila 360 | Plaza 50-248 | Docente OSORIO, MARIA SILVINIA | DNI - | No se encontró agente
+Fila 361 | Plaza 50-626 | Docente SCHIAPPA PIETRA, CRISTINE IRENE | DNI - | No se encontró agente
+Fila 366 | Plaza 50-639 | Docente JURI, ESTELA MARIA | DNI - | Sin fecha TOMA DE PO válida. Valor recibido: 01/03/202023
+Fila 371 | Plaza 50-735 | Docente MACHUCA NESTOR FABIAN | DNI - | No se encontró agente
+Fila 374 | Plaza 50-629 | Docente PAVON, GABRIELA VANESA | DNI - | No se encontró agente
+Fila 379 | Plaza 50-760 | Docente MARTINEZ, SILVINA ROCIO | DNI - | No se encontró agente
+Fila 384 | Plaza 50-490 | Docente MARTINEZ, SILVINA ROCIO | DNI - | No se encontró agente
+Fila 393 | Plaza 50-258 | Docente RUIZ CRISTIAN SAMUEL | DNI - | No se encontró agente
+Fila 404 | Plaza 50-746 | Docente MACHUCA NESTOR FABIAN | DNI - | No se encontró agente
+Fila 406 | Plaza 50-307 | Docente ROMERO, ROXANA GLADYS | DNI - | No se encontró agente
+Fila 412 | Plaza 50-557 | Docente FERNÁNDEZ, ANDREA MARIANA | DNI - | No se encontró agente
+Fila 413 | Plaza 50-439 | Docente FERNÁNDEZ, ANDREA MARIANA | DNI - | No se encontró agente
+Fila 416 | Plaza 50-556 | Docente FERNÁNDEZ, ANDREA MARIANA | DNI - | No se encontró agente
+Fila 424 | Plaza 50-766 | Docente CHAVES, JULIO CERSAR | DNI - | No se encontró agente
+Fila 438 | Plaza 50-357 | Docente ROMERO, ROXANA GLADYS | DNI - | No se encontró agente
+Fila 446 | Plaza 50-491 | Docente MARTINEZ, SILVINA ROCIO | DNI - | No se encontró agente
+Fila 460 | Plaza 50-580 | Docente SCHIAPPA PIETRA, CRISTINE IRENE | DNI - | No se encontró agente
+Fila 463 | Plaza 50-583 | Docente FERNÁNDEZ, ANDREA MARIANA | DNI - | No se encontró agente
+Fila 480 | Plaza 50-596 | Docente GOMEZ, DAVID ALEJANDRO | DNI - | No se encontró agente
+Fila 490 | Plaza 50-603 | Docente JARA ALICIA DAHIANA | DNI - | No se encontró agente
+Fila 493 | Plaza 50-606 | Docente CORGNALI, ESTEFANÍA INÉS | DNI - | No se encontró agente
+Fila 507 | Plaza 50-695 | Docente FERNÁNDEZ, ANDREA MARIANA | DNI - | No se encontró agente
+Fila 522 | Plaza 50-641 | Docente RODRIGUEZ, MARIANO ADAN | DNI - | No se encontró agente
+Fila 529 | Plaza 50-708 | Docente VICENTIN, LAURA INES | DNI - | No se encontró agente
+Fila 547 | Plaza 50-193 | Docente VICENTIN, LAURA INES | DNI - | No se encontró agente
+Fila 561 | Plaza 50-666 | Docente RODRIGUEZ, MARIANO ADAN | DNI - | No se encontró agente
+Fila 568 | Plaza 50-671 | Docente GATTI, GASTON MARIO LIONEL | DNI - | Sin fecha TOMA DE PO válida. Valor recibido: -
+Fila 572 | Plaza 50-410 | Docente PAVON, GABRIELA VANESA | DNI - | No se encontró agente
+Fila 574 | Plaza 50-395 | Docente PAVON, GABRIELA VANESA | DNI - | No se encontró agente
+Fila 575 | Plaza 50-705 | Docente PAVON, GABRIELA VANESA | DNI - | No se encontró agente
+Fila 603 | Plaza 50-677 | Docente RODRIGUEZ, MARIANO ADAN | DNI - | No se encontró agente
+Fila 613 | Plaza 50-067 | Docente RODRIGUEZ, MARIANO ADAN | DNI - | No se encontró agente
+Fila 618 | Plaza 50-484 | Docente SOTELO, ELISABET ITATI | DNI - | No se encontró agente
+Fila 642 | Plaza 50-012 | Docente SOTELO, ELISABET ITATI | DNI - | No se encontró agente
+Fila 652 | Plaza 50-020 | Docente PIASENTINI, MIRIAM ISOLINA | DNI - | No se encontró agente
+Fila 656 | Plaza 50-024 | Docente LEMES MEDINA, JOHANA ELIZABETH | DNI - | No se encontró agente
+Fila 660 | Plaza 50-028 | Docente MOREIRA, CECILIA NOEMI | DNI - | No se encontró agente
+Fila 661 | Plaza 50-029 | Docente MOREIRA, CECILIA NOEMI | DNI - | No se encontró agente
+Fila 675 | Plaza 50-041 | Docente PIRIZ, SANDRA EMILCE | DNI - | No se encontró agente
+Fila 678 | Plaza 50-044 | Docente VILLAFAÑE, CESAR JAVIER | DNI - | No se encontró agente
+Fila 680 | Plaza 50-045 | Docente VILLAFAÑE, CESAR JAVIER | DNI - | No se encontró agente
+Fila 682 | Plaza 50-042 | Docente VILLAFAÑE, CESAR JAVIER | DNI - | No se encontró agente
+Fila 685 | Plaza 50-047 | Docente PIRIZ, SANDRA EMILCE | DNI - | No se encontró agente
+Fila 691 | Plaza 50-052 | Docente REYES GABRIELA BELEN | DNI - | No se encontró agente
+Fila 704 | Plaza 50-064 | Docente GOMEZ, HELIO LEOPOLDO | DNI - | No se encontró agente
+Fila 712 | Plaza 50-071 | Docente GUILLIARD, MARIA ELBA | DNI - | Histórico sin fecha exacta de cierre: JUBILADA
+Fila 713 | Plaza 50-071 | Docente MARTIN MARIA INES | DNI - | No se encontró agente
+Fila 714 | Plaza 50-072 | Docente FERNÁNDEZ, ANDREA MARIANA | DNI - | No se encontró agente
+Fila 716 | Plaza 50-073 | Docente FERNÁNDEZ, ANDREA MARIANA | DNI - | No se encontró agente
+Fila 718 | Plaza 50-074 | Docente FERNÁNDEZ, ANDREA MARIANA | DNI - | No se encontró agente
+Fila 727 | Plaza 50-080 | Docente PIRIZ, SANDRA EMILCE | DNI - | No se encontró agente
+Fila 768 | Plaza 52-004 | Docente SOTELO, ELISABET ITATI | DNI - | No se encontró agente
+Fila 786 | Plaza 32-006 | Docente OLIVERI, ESTELA VIVIANA | DNI - | No se encontró agente
+Fila 791 | Plaza 32-009 | Docente PTTON, MARIA CRISTINA | DNI - | No se encontró agente
+Fila 792 | Plaza 32-005 | Docente SOSA DE BORTOLI, LAURA CRISTINA | DNI - | No se encontró agente
+Fila 795 | Plaza 32-011 | Docente NUÑEZ, CINTIA DE LOS MILAGROS | DNI - | No se encontró agente
+Fila 796 | Plaza 32-012 | Docente GOMEZ, ALEJANDRO DAVID | DNI - | No se encontró agente
+Fila 800 | Plaza 32-016 | Docente REGUERA, GILDA ELIZABET | DNI - | No se encontró agente
+Fila 802 | Plaza 49-002 | Docente PEZZELATO, EDUARDO ANDRES | DNI - | No se encontró agente
+Fila 824 | Plaza 20-014 | Docente SCHIAPPA PIETRA, CRISTINE IRENE | DNI - | No se encontró agente

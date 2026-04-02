@@ -22,10 +22,9 @@ dotenv.config();
       database: process.env.DB_DATABASE || process.env.DB_NAME || 'sga',
       autoLoadEntities: true,
       synchronize: false,
-      ssl:
-        process.env.NODE_ENV === 'production'
-          ? { rejectUnauthorized: false }
-          : false,
+      ssl: process.env.DB_HOST?.includes('render.com')
+        ? { rejectUnauthorized: false }
+        : false,
     }),
     AgentsModule,
     PofModule,
