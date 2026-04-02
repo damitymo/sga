@@ -4,6 +4,7 @@ import {
   Column,
   ManyToOne,
   JoinColumn,
+  UpdateDateColumn,
 } from 'typeorm';
 import { Agent } from '../../agents/entities/agent.entity';
 import { PofPosition } from '../../pof/entities/pof-position.entity';
@@ -12,56 +13,56 @@ import { AgentAssignment } from '../../assignments/entities/agent-assignment.ent
 @Entity('revista_records')
 export class RevistaRecord {
   @PrimaryGeneratedColumn()
-  id: number;
+  id!: number;
 
-  @Column()
-  agent_id: number;
+  @Column({ type: 'int' })
+  agent_id!: number;
 
-  @Column({ nullable: true })
-  pof_position_id: number;
+  @Column({ type: 'int', nullable: true })
+  pof_position_id!: number | null;
 
-  @Column({ nullable: true })
-  assignment_id: number;
+  @Column({ type: 'int', nullable: true })
+  assignment_id!: number | null;
 
   @ManyToOne(() => Agent, { eager: true, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'agent_id' })
-  agent: Agent;
+  agent!: Agent;
 
   @ManyToOne(() => PofPosition, { eager: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'pof_position_id' })
-  pof_position: PofPosition;
+  pof_position!: PofPosition | null;
 
   @ManyToOne(() => AgentAssignment, { eager: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'assignment_id' })
-  assignment: AgentAssignment;
+  assignment!: AgentAssignment | null;
 
-  @Column({ nullable: true })
-  revista_type: string;
+  @Column({ type: 'varchar', nullable: true })
+  revista_type!: string | null;
 
-  @Column({ nullable: true })
-  character_type: string;
+  @Column({ type: 'varchar', nullable: true })
+  character_type!: string | null;
 
-  @Column({ nullable: true, type: 'date' })
-  start_date: Date;
+  @Column({ type: 'date', nullable: true })
+  start_date!: Date | null;
 
-  @Column({ nullable: true, type: 'date' })
-  end_date: Date;
+  @Column({ type: 'date', nullable: true })
+  end_date!: Date | null;
 
-  @Column({ default: false })
-  is_current: boolean;
+  @Column({ type: 'boolean', default: false })
+  is_current!: boolean;
 
-  @Column({ nullable: true })
-  legal_norm: string;
+  @Column({ type: 'varchar', nullable: true })
+  legal_norm!: string | null;
 
-  @Column({ nullable: true })
-  resolution_number: string;
+  @Column({ type: 'varchar', nullable: true })
+  resolution_number!: string | null;
 
-  @Column({ nullable: true, type: 'text' })
-  notes: string;
-
-  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
-  created_at: Date;
+  @Column({ type: 'text', nullable: true })
+  notes!: string | null;
 
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
-  updated_at: Date;
+  created_at!: Date;
+
+  @UpdateDateColumn({ type: 'timestamp' })
+  updated_at!: Date;
 }

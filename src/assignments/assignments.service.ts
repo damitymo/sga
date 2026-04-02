@@ -28,14 +28,14 @@ export class AssignmentsService {
   ) {}
 
   private buildLegalNormLabel(
-    legalNormType?: string,
-    legalNormNumber?: string,
+    legalNormType?: string | null,
+    legalNormNumber?: string | null,
   ): string | undefined {
     if (!legalNormType && !legalNormNumber) {
       return undefined;
     }
 
-    const labels: { [key: string]: string } = {
+    const labels: Record<string, string> = {
       DECRETO: 'Decreto',
       RESOLUCION_MINISTERIAL: 'Resolución Ministerial',
       DISPOSICION: 'Disposición',
@@ -125,6 +125,9 @@ export class AssignmentsService {
       data.legal_norm_number,
     );
 
+    const characterType =
+      data.character_type ?? pofPosition.revista_status ?? 'TITULAR';
+
     const assignmentPayload: DeepPartial<AgentAssignment> = {
       agent_id: data.agent_id,
       pof_position_id: pofPosition.id,
@@ -133,8 +136,7 @@ export class AssignmentsService {
       legal_norm: legalNormLabel,
       legal_norm_type: data.legal_norm_type ?? undefined,
       legal_norm_number: data.legal_norm_number ?? undefined,
-      character_type:
-        data.character_type ?? pofPosition.revista_status ?? 'TITULAR',
+      character_type: characterType,
       assignment_date: assignmentDate,
       end_date: data.movement_type === 'BAJA' ? bajaDate : undefined,
       status,
@@ -150,9 +152,9 @@ export class AssignmentsService {
         pof_position_id: pofPosition.id,
         assignment_id: savedAssignment.id,
         revista_type: 'DOCENTE',
-        character_type:
-          data.character_type ?? pofPosition.revista_status ?? 'TITULAR',
+        character_type: characterType,
         start_date: assignmentDate,
+        end_date: null,
         is_current: true,
         legal_norm: legalNormLabel ?? pofPosition.legal_norm ?? undefined,
         resolution_number: data.legal_norm_number ?? undefined,
@@ -162,10 +164,12 @@ export class AssignmentsService {
     }
 
     if (data.movement_type === 'BAJA') {
+      const closeDateStr = data.end_date ?? assignmentDateStr;
+
       await this.revistaService.closeCurrentRecordsByAgentAndPosition(
         data.agent_id,
         pofPosition.id,
-        data.end_date ?? assignmentDateStr,
+        closeDateStr,
       );
 
       await this.assignmentsRepository.update(activeAssignment!.id, {

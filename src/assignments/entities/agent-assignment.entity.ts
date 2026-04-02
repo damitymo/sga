@@ -12,55 +12,55 @@ import { PofPosition } from '../../pof/entities/pof-position.entity';
 @Entity('agent_assignments')
 export class AgentAssignment {
   @PrimaryGeneratedColumn()
-  id: number;
+  id!: number;
 
-  @Column()
-  agent_id: number;
+  @Column({ type: 'int' })
+  agent_id!: number;
 
-  @Column()
-  pof_position_id: number;
+  @Column({ type: 'int' })
+  pof_position_id!: number;
 
   @ManyToOne(() => Agent, { eager: true, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'agent_id' })
-  agent: Agent;
+  agent!: Agent;
 
   @ManyToOne(() => PofPosition, { eager: true, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'pof_position_id' })
-  pof_position: PofPosition;
+  pof_position!: PofPosition;
 
-  @Column()
-  movement_type: string; // DESIGNACION | BAJA
+  @Column({ type: 'varchar' })
+  movement_type!: string;
 
-  @Column({ nullable: true })
-  resolution_number: string;
+  @Column({ type: 'varchar', nullable: true })
+  resolution_number!: string | null;
 
-  @Column({ nullable: true })
-  legal_norm: string;
+  @Column({ type: 'varchar', nullable: true })
+  legal_norm!: string | null;
 
-  @Column({ nullable: true })
-  legal_norm_type: string; // DECRETO | RESOLUCION_MINISTERIAL | DISPOSICION | RI
+  @Column({ type: 'varchar', nullable: true })
+  legal_norm_type!: string | null;
 
-  @Column({ nullable: true })
-  legal_norm_number: string;
+  @Column({ type: 'varchar', nullable: true })
+  legal_norm_number!: string | null;
 
-  @Column({ nullable: true })
-  character_type: string; // TITULAR | INTERINO | SUPLENTE
-
-  @Column({ type: 'date', nullable: true })
-  assignment_date: Date;
+  @Column({ type: 'varchar', nullable: true })
+  character_type!: string | null;
 
   @Column({ type: 'date', nullable: true })
-  end_date: Date;
+  assignment_date!: Date | null;
 
-  @Column({ default: 'ACTIVA' })
-  status: string; // ACTIVA | FINALIZADA
+  @Column({ type: 'date', nullable: true })
+  end_date!: Date | null;
 
-  @Column({ nullable: true, type: 'text' })
-  notes: string;
+  @Column({ type: 'varchar', default: 'ACTIVA' })
+  status!: string;
+
+  @Column({ type: 'text', nullable: true })
+  notes!: string | null;
 
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
-  created_at: Date;
+  created_at!: Date;
 
   @UpdateDateColumn({ type: 'timestamp' })
-  updated_at: Date;
+  updated_at!: Date;
 }

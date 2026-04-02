@@ -2,15 +2,15 @@ import { IsIn, IsInt, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class CreateAssignmentByPlazaNumberDto {
   @IsInt()
-  agent_id: number;
+  agent_id!: number;
 
   @IsString()
   @IsNotEmpty()
-  plaza_number: string;
+  plaza_number!: string;
 
   @IsString()
   @IsIn(['DESIGNACION', 'BAJA'])
-  movement_type: 'DESIGNACION' | 'BAJA';
+  movement_type!: 'DESIGNACION' | 'BAJA';
 
   @IsOptional()
   @IsString()
