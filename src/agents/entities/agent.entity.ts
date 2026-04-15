@@ -15,40 +15,40 @@ export class Agent {
   @PrimaryGeneratedColumn()
   id!: number;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   last_name!: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   first_name!: string | null;
 
-  @Column()
+  @Column({ type: 'varchar' })
   full_name!: string;
 
-  @Column({ unique: true })
+  @Column({ type: 'varchar', unique: true })
   dni!: string;
 
   @Column({ type: 'date', nullable: true })
   birth_date!: Date | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   address!: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   phone!: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   mobile!: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   email!: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   teaching_file_number!: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   board_file_number!: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   secondary_board_number!: string | null;
 
   @Column({ type: 'date', nullable: true })
@@ -60,13 +60,13 @@ export class Agent {
   @Column({ type: 'text', nullable: true })
   titles!: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   identity_card_number!: string | null;
 
   @Column({ type: 'text', nullable: true })
   notes!: string | null;
 
-  @Column({ default: true })
+  @Column({ type: 'boolean', default: true })
   is_active!: boolean;
 
   @OneToMany(() => AgentAssignment, (assignment) => assignment.agent)
@@ -78,18 +78,18 @@ export class Agent {
   @OneToMany(() => RevistaRecord, (revista) => revista.agent)
   revista_records!: RevistaRecord[];
 
-  @CreateDateColumn()
+  @CreateDateColumn({ type: 'timestamp' })
   created_at!: Date;
 
-  @UpdateDateColumn()
+  @UpdateDateColumn({ type: 'timestamp' })
   updated_at!: Date;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   legal_norm_type!: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   legal_norm_number!: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   character_type!: string | null;
 }
