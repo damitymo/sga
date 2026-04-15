@@ -1,229 +1,349 @@
-import { Injectable } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-
+import { ILike, Repository } from 'typeorm';
 import { Agent } from './entities/agent.entity';
+import {
+  AttendanceRecord,
+  AttendanceStatus,
+} from '../attendance/entities/attendance-record.entity';
 import { AgentAssignment } from '../assignments/entities/agent-assignment.entity';
-import { AttendanceRecord } from '../attendance/entities/attendance-record.entity';
 import { RevistaRecord } from '../revista/entities/revista-record.entity';
 
-type AgentSearchFilters = {
+type SearchAgentsFilters = {
   dni?: string;
   apellido?: string;
   nombre?: string;
   materia?: string;
 };
 
-function hasEndDate(value?: Date | string | null): boolean {
-  return value !== null && value !== undefined && String(value).trim() !== '';
-}
-
-function isHistoricalRevista(record: RevistaRecord): boolean {
-  if (hasEndDate(record.end_date)) return true;
-  if (record.is_current === false) return true;
-  return false;
-}
-
-function sortByStartDateDesc<
-  T extends { start_date?: Date | string | null; id?: number },
->(a: T, b: T): number {
-  const aTime = a.start_date ? new Date(a.start_date).getTime() : 0;
-  const bTime = b.start_date ? new Date(b.start_date).getTime() : 0;
-
-  if (bTime !== aTime) return bTime - aTime;
-  return (b.id ?? 0) - (a.id ?? 0);
-}
-
 @Injectable()
 export class AgentsService {
   constructor(
     @InjectRepository(Agent)
     private readonly agentsRepository: Repository<Agent>,
-    @InjectRepository(AgentAssignment)
-    private readonly assignmentsRepository: Repository<AgentAssignment>,
+
     @InjectRepository(AttendanceRecord)
     private readonly attendanceRepository: Repository<AttendanceRecord>,
+
+    @InjectRepository(AgentAssignment)
+    private readonly assignmentsRepository: Repository<AgentAssignment>,
+
     @InjectRepository(RevistaRecord)
     private readonly revistaRepository: Repository<RevistaRecord>,
   ) {}
 
-  findAll() {
-    return this.agentsRepository.find({
-      where: { is_active: true },
-      order: { full_name: 'ASC' },
-    });
-  }
-
-  findOne(id: number) {
-    return this.agentsRepository.findOne({
-      where: { id, is_active: true },
-    });
-  }
-
-  findByDni(dni: string) {
-    return this.agentsRepository.findOne({
-      where: { dni, is_active: true },
-    });
-  }
-
-  async findBirthdaysByCurrentMonth() {
-    return this.agentsRepository
-      .createQueryBuilder('agent')
-      .where('agent.is_active = :isActive', { isActive: true })
-      .andWhere('agent.birth_date IS NOT NULL')
-      .andWhere(
-        'EXTRACT(MONTH FROM agent.birth_date) = EXTRACT(MONTH FROM CURRENT_DATE)',
-      )
-      .orderBy('EXTRACT(DAY FROM agent.birth_date)', 'ASC')
-      .addOrderBy('agent.full_name', 'ASC')
-      .getMany()
-      .then((items) =>
-        items.map((agent) => ({
-          id: agent.id,
-          full_name: agent.full_name,
-          dni: agent.dni,
-          birth_date: agent.birth_date,
-          day: agent.birth_date ? new Date(agent.birth_date).getDate() : null,
-        })),
-      );
-  }
-
-  async search(filters: AgentSearchFilters) {
-    const query = this.agentsRepository
-      .createQueryBuilder('agent')
-      .leftJoinAndSelect(
-        'agent.assignments',
-        'assignment',
-        "assignment.status = 'ACTIVA'",
-      )
-      .leftJoinAndSelect('assignment.pof_position', 'pof')
-      .where('agent.is_active = :isActive', { isActive: true });
-
-    if (filters.dni?.trim()) {
-      query.andWhere('agent.dni ILIKE :dni', {
-        dni: `%${filters.dni.trim()}%`,
-      });
+  async create(data: Partial<Agent>) {
+    if (!data.full_name?.trim()) {
+      throw new BadRequestException('El nombre completo es obligatorio.');
     }
 
-    if (filters.apellido?.trim()) {
-      query.andWhere('agent.last_name ILIKE :apellido', {
-        apellido: `%${filters.apellido.trim()}%`,
-      });
+    if (!data.dni?.trim()) {
+      throw new BadRequestException('El DNI es obligatorio.');
     }
 
-    if (filters.nombre?.trim()) {
-      query.andWhere(
-        '(agent.first_name ILIKE :nombre OR agent.full_name ILIKE :nombre)',
-        {
-          nombre: `%${filters.nombre.trim()}%`,
-        },
-      );
+    const existing = await this.agentsRepository.findOne({
+      where: { dni: data.dni.trim() },
+    });
+
+    if (existing) {
+      throw new BadRequestException('Ya existe un agente con ese DNI.');
     }
 
-    if (filters.materia?.trim()) {
-      query.andWhere('pof.subject_name ILIKE :materia', {
-        materia: `%${filters.materia.trim()}%`,
-      });
-    }
-
-    query.orderBy('agent.full_name', 'ASC');
-
-    const agents = await query.getMany();
-
-    return agents.map((agent) => ({
-      id: agent.id,
-      full_name: agent.full_name,
-      last_name: agent.last_name,
-      first_name: agent.first_name,
-      dni: agent.dni,
-      email: agent.email,
-      current_subjects:
-        agent.assignments?.map((assignment) => ({
-          plaza_number: assignment.pof_position?.plaza_number ?? null,
-          subject_name: assignment.pof_position?.subject_name ?? null,
-          shift: assignment.pof_position?.shift ?? null,
-        })) ?? [],
-    }));
-  }
-
-  async findFullProfile(id: number) {
-    const agent = await this.agentsRepository.findOne({
-      where: { id, is_active: true },
-    });
-
-    if (!agent) return null;
-
-    const attendanceRecords = await this.attendanceRepository.find({
-      where: { agent_id: id },
-      order: { start_date: 'DESC', id: 'DESC' },
-    });
-
-    const revistaRecords = await this.revistaRepository.find({
-      where: { agent_id: id },
-      order: { start_date: 'DESC', id: 'DESC' },
-    });
-
-    const licencias = attendanceRecords.filter(
-      (item) => item.record_type === 'LICENCIA',
-    );
-
-    const ausentes = attendanceRecords.filter(
-      (item) => item.record_type === 'AUSENTE',
-    );
-
-    const capacitaciones = attendanceRecords.filter(
-      (item) => item.record_type === 'CAPACITACION',
-    );
-
-    const revista_actual = revistaRecords
-      .filter((item) => !isHistoricalRevista(item))
-      .sort(sortByStartDateDesc);
-
-    const revista_historica = revistaRecords
-      .filter((item) => isHistoricalRevista(item))
-      .sort(sortByStartDateDesc);
-
-    return {
-      ...agent,
-      licencias,
-      ausentes,
-      capacitaciones,
-      revista_actual,
-      revista_historica,
-    };
-  }
-
-  create(data: Partial<Agent>) {
     const agent = this.agentsRepository.create({
       ...data,
-      is_active: true,
+      full_name: data.full_name.trim(),
+      dni: data.dni.trim(),
+      last_name: data.last_name?.trim() || null,
+      first_name: data.first_name?.trim() || null,
+      address: data.address?.trim() || null,
+      phone: data.phone?.trim() || null,
+      mobile: data.mobile?.trim() || null,
+      email: data.email?.trim() || null,
+      teaching_file_number: data.teaching_file_number?.trim() || null,
+      board_file_number: data.board_file_number?.trim() || null,
+      secondary_board_number: data.secondary_board_number?.trim() || null,
+      titles: data.titles?.trim() || null,
+      identity_card_number: data.identity_card_number?.trim() || null,
+      notes: data.notes?.trim() || null,
+      legal_norm_type: data.legal_norm_type?.trim() || null,
+      legal_norm_number: data.legal_norm_number?.trim() || null,
+      character_type: data.character_type?.trim() || null,
+      is_active: data.is_active ?? true,
     });
 
     return this.agentsRepository.save(agent);
   }
 
-  async update(id: number, data: Partial<Agent>) {
-    const existing = await this.agentsRepository.findOne({
-      where: { id },
-    });
-
-    if (!existing) return null;
-
-    await this.agentsRepository.update(id, data);
-
-    return this.agentsRepository.findOne({
-      where: { id },
+  async findAll() {
+    return this.agentsRepository.find({
+      order: {
+        full_name: 'ASC',
+      },
     });
   }
 
-  async remove(id: number) {
-    const existing = await this.agentsRepository.findOne({
+  async search(filters: SearchAgentsFilters) {
+    const dni = filters.dni?.trim();
+    const apellido = filters.apellido?.trim();
+    const nombre = filters.nombre?.trim();
+    const materia = filters.materia?.trim();
+
+    if (!dni && !apellido && !nombre && !materia) {
+      return [];
+    }
+
+    const where: Array<Partial<Record<keyof Agent, any>>> = [];
+
+    if (dni) {
+      where.push({ dni: ILike(`%${dni}%`) });
+    }
+
+    if (apellido) {
+      where.push({ last_name: ILike(`%${apellido}%`) });
+      where.push({ full_name: ILike(`%${apellido}%`) });
+    }
+
+    if (nombre) {
+      where.push({ first_name: ILike(`%${nombre}%`) });
+      where.push({ full_name: ILike(`%${nombre}%`) });
+    }
+
+    if (materia) {
+      where.push({ notes: ILike(`%${materia}%`) });
+      where.push({ titles: ILike(`%${materia}%`) });
+    }
+
+    return this.agentsRepository.find({
+      where,
+      order: {
+        full_name: 'ASC',
+      },
+      take: 100,
+    });
+  }
+
+  async findOne(id: number) {
+    const agent = await this.agentsRepository.findOne({
       where: { id },
     });
 
-    if (!existing) return null;
+    if (!agent) {
+      throw new NotFoundException('Agente no encontrado.');
+    }
 
-    existing.is_active = false;
-    return this.agentsRepository.save(existing);
+    return agent;
+  }
+
+  async findByDni(dni: string) {
+    const agent = await this.agentsRepository.findOne({
+      where: { dni: dni.trim() },
+    });
+
+    if (!agent) {
+      throw new NotFoundException('Agente no encontrado.');
+    }
+
+    return agent;
+  }
+
+  async update(id: number, data: Partial<Agent>) {
+    const existing = await this.findOne(id);
+
+    if (data.dni && data.dni.trim() !== existing.dni) {
+      const duplicate = await this.agentsRepository.findOne({
+        where: { dni: data.dni.trim() },
+      });
+
+      if (duplicate && duplicate.id !== id) {
+        throw new BadRequestException('Ya existe otro agente con ese DNI.');
+      }
+    }
+
+    await this.agentsRepository.update(id, {
+      full_name:
+        data.full_name !== undefined
+          ? data.full_name.trim()
+          : existing.full_name,
+      dni: data.dni !== undefined ? data.dni.trim() : existing.dni,
+      last_name:
+        data.last_name !== undefined
+          ? data.last_name?.trim() || null
+          : existing.last_name,
+      first_name:
+        data.first_name !== undefined
+          ? data.first_name?.trim() || null
+          : existing.first_name,
+      birth_date:
+        data.birth_date !== undefined ? data.birth_date : existing.birth_date,
+      address:
+        data.address !== undefined
+          ? data.address?.trim() || null
+          : existing.address,
+      phone:
+        data.phone !== undefined ? data.phone?.trim() || null : existing.phone,
+      mobile:
+        data.mobile !== undefined
+          ? data.mobile?.trim() || null
+          : existing.mobile,
+      email:
+        data.email !== undefined ? data.email?.trim() || null : existing.email,
+      teaching_file_number:
+        data.teaching_file_number !== undefined
+          ? data.teaching_file_number?.trim() || null
+          : existing.teaching_file_number,
+      board_file_number:
+        data.board_file_number !== undefined
+          ? data.board_file_number?.trim() || null
+          : existing.board_file_number,
+      secondary_board_number:
+        data.secondary_board_number !== undefined
+          ? data.secondary_board_number?.trim() || null
+          : existing.secondary_board_number,
+      school_entry_date:
+        data.school_entry_date !== undefined
+          ? data.school_entry_date
+          : existing.school_entry_date,
+      teaching_entry_date:
+        data.teaching_entry_date !== undefined
+          ? data.teaching_entry_date
+          : existing.teaching_entry_date,
+      titles:
+        data.titles !== undefined
+          ? data.titles?.trim() || null
+          : existing.titles,
+      identity_card_number:
+        data.identity_card_number !== undefined
+          ? data.identity_card_number?.trim() || null
+          : existing.identity_card_number,
+      notes:
+        data.notes !== undefined ? data.notes?.trim() || null : existing.notes,
+      is_active:
+        data.is_active !== undefined ? data.is_active : existing.is_active,
+      legal_norm_type:
+        data.legal_norm_type !== undefined
+          ? data.legal_norm_type?.trim() || null
+          : existing.legal_norm_type,
+      legal_norm_number:
+        data.legal_norm_number !== undefined
+          ? data.legal_norm_number?.trim() || null
+          : existing.legal_norm_number,
+      character_type:
+        data.character_type !== undefined
+          ? data.character_type?.trim() || null
+          : existing.character_type,
+    });
+
+    return this.findOne(id);
+  }
+
+  async remove(id: number) {
+    const existing = await this.findOne(id);
+    await this.agentsRepository.delete(id);
+
+    return {
+      message: 'Agente eliminado correctamente.',
+      deleted_id: existing.id,
+    };
+  }
+
+  async getBirthdaysByMonth(month: number) {
+    if (!month || month < 1 || month > 12) {
+      throw new BadRequestException('Mes inválido.');
+    }
+
+    const agents = await this.agentsRepository.find({
+      where: {
+        is_active: true,
+      },
+      order: {
+        full_name: 'ASC',
+      },
+    });
+
+    return agents.filter((agent) => {
+      if (!agent.birth_date) return false;
+
+      const date = new Date(agent.birth_date);
+      return date.getMonth() + 1 === month;
+    });
+  }
+
+  async findBirthdaysByCurrentMonth() {
+    const currentMonth = new Date().getMonth() + 1;
+    return this.getBirthdaysByMonth(currentMonth);
+  }
+
+  async findFullProfile(id: number) {
+    const agent = await this.findOne(id);
+
+    const attendance = await this.attendanceRepository.find({
+      where: { agent_id: id },
+      order: { attendance_date: 'DESC', id: 'DESC' },
+    });
+
+    const assignments = await this.assignmentsRepository.find({
+      where: { agent_id: id },
+      order: {
+        created_at: 'DESC',
+        id: 'DESC',
+      },
+    });
+
+    const revistaActual = await this.revistaRepository.find({
+      where: {
+        agent_id: id,
+        is_current: true,
+      },
+      order: {
+        start_date: 'DESC',
+        id: 'DESC',
+      },
+    });
+
+    const revistaHistorica = await this.revistaRepository.find({
+      where: {
+        agent_id: id,
+        is_current: false,
+      },
+      order: {
+        start_date: 'DESC',
+        id: 'DESC',
+      },
+    });
+
+    const licencias = attendance.filter(
+      (item) => item.status === AttendanceStatus.LICENCIA,
+    );
+
+    const ausentes = attendance.filter(
+      (item) => item.status === AttendanceStatus.AUSENTE_INJUSTIFICADO,
+    );
+
+    const presentes = attendance.filter(
+      (item) => item.status === AttendanceStatus.PRESENTE,
+    );
+
+    const attendanceStats = {
+      total_registros: attendance.length,
+      licencias: licencias.length,
+      ausentes: ausentes.length,
+      presentes: presentes.length,
+    };
+
+    return {
+      ...agent,
+      attendance,
+      attendance_stats: attendanceStats,
+      licencias,
+      ausentes,
+      presentes,
+      assignments,
+      revista_actual: revistaActual,
+      revista_historica: revistaHistorica,
+    };
   }
 }

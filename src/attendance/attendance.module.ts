@@ -8,5 +8,6 @@ import { AttendanceController } from './attendance.controller';
   imports: [TypeOrmModule.forFeature([AttendanceRecord])],
   controllers: [AttendanceController],
   providers: [AttendanceService],
+  exports: [AttendanceService],
 })
 export class AttendanceModule {}

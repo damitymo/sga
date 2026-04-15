@@ -1,16 +1,16 @@
 import {
-  Body,
   Controller,
-  Delete,
-  ForbiddenException,
   Get,
   Param,
   ParseIntPipe,
-  Patch,
-  Post,
   Query,
-  Request,
+  Post,
+  Patch,
+  Delete,
+  Body,
   UseGuards,
+  Request,
+  ForbiddenException,
 } from '@nestjs/common';
 import { AgentsService } from './agents.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -34,8 +34,14 @@ type AuthenticatedRequest = {
 export class AgentsController {
   constructor(private readonly agentsService: AgentsService) {}
 
+  @Roles('ADMIN', 'ADMINISTRATIVO')
+  @Post()
+  create(@Body() body: Partial<Agent>) {
+    return this.agentsService.create(body);
+  }
+
   @Get()
-  async findAll(@Request() req: AuthenticatedRequest) {
+  findAll(@Request() req: AuthenticatedRequest) {
     const user = req.user;
 
     if (user.role === 'AGENTE') {
@@ -45,8 +51,7 @@ export class AgentsController {
         );
       }
 
-      const ownAgent = await this.agentsService.findOne(user.agent_id);
-      return ownAgent ? [ownAgent] : [];
+      return this.agentsService.findOne(user.agent_id);
     }
 
     return this.agentsService.findAll();
@@ -69,7 +74,7 @@ export class AgentsController {
 
     if (user.role === 'AGENTE') {
       throw new ForbiddenException(
-        'El rol AGENTE no puede realizar búsquedas generales de docentes.',
+        'El rol AGENTE no puede buscar docentes/agentes.',
       );
     }
 
@@ -81,17 +86,17 @@ export class AgentsController {
     });
   }
 
-  @Get('dni/:dni')
-  findByDni(@Request() req: AuthenticatedRequest, @Param('dni') dni: string) {
+  @Get('me/full-profile')
+  findMyFullProfile(@Request() req: AuthenticatedRequest) {
     const user = req.user;
 
-    if (user.role === 'AGENTE') {
+    if (!user.agent_id) {
       throw new ForbiddenException(
-        'El rol AGENTE no puede buscar docentes por DNI.',
+        'El usuario autenticado no está vinculado a un docente/agente.',
       );
     }
 
-    return this.agentsService.findByDni(dni);
+    return this.agentsService.findFullProfile(user.agent_id);
   }
 
   @Get(':id/full-profile')
@@ -134,18 +139,12 @@ export class AgentsController {
 
       if (user.agent_id !== id) {
         throw new ForbiddenException(
-          'El rol AGENTE solo puede ver sus propios datos.',
+          'El rol AGENTE solo puede ver su propia información.',
         );
       }
     }
 
     return this.agentsService.findOne(id);
-  }
-
-  @Roles('ADMIN', 'ADMINISTRATIVO')
-  @Post()
-  create(@Body() body: Partial<Agent>) {
-    return this.agentsService.create(body);
   }
 
   @Roles('ADMIN', 'ADMINISTRATIVO')

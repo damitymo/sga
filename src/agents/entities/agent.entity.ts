@@ -13,83 +13,83 @@ import { RevistaRecord } from '../../revista/entities/revista-record.entity';
 @Entity('agents')
 export class Agent {
   @PrimaryGeneratedColumn()
-  id: number;
+  id!: number;
 
   @Column({ nullable: true })
-  last_name: string;
+  last_name!: string | null;
 
   @Column({ nullable: true })
-  first_name: string;
+  first_name!: string | null;
 
   @Column()
-  full_name: string;
+  full_name!: string;
 
   @Column({ unique: true })
-  dni: string;
+  dni!: string;
 
   @Column({ type: 'date', nullable: true })
-  birth_date: Date;
+  birth_date!: Date | null;
 
   @Column({ nullable: true })
-  address: string;
+  address!: string | null;
 
   @Column({ nullable: true })
-  phone: string;
+  phone!: string | null;
 
   @Column({ nullable: true })
-  mobile: string;
+  mobile!: string | null;
 
   @Column({ nullable: true })
-  email: string;
+  email!: string | null;
 
   @Column({ nullable: true })
-  teaching_file_number: string;
+  teaching_file_number!: string | null;
 
   @Column({ nullable: true })
-  board_file_number: string;
+  board_file_number!: string | null;
 
   @Column({ nullable: true })
-  secondary_board_number: string;
+  secondary_board_number!: string | null;
 
   @Column({ type: 'date', nullable: true })
-  school_entry_date: Date;
+  school_entry_date!: Date | null;
 
   @Column({ type: 'date', nullable: true })
-  teaching_entry_date: Date;
+  teaching_entry_date!: Date | null;
 
   @Column({ type: 'text', nullable: true })
-  titles: string;
+  titles!: string | null;
 
   @Column({ nullable: true })
-  identity_card_number: string;
+  identity_card_number!: string | null;
 
   @Column({ type: 'text', nullable: true })
-  notes: string;
+  notes!: string | null;
 
   @Column({ default: true })
-  is_active: boolean;
+  is_active!: boolean;
 
   @OneToMany(() => AgentAssignment, (assignment) => assignment.agent)
-  assignments: AgentAssignment[];
+  assignments!: AgentAssignment[];
 
   @OneToMany(() => AttendanceRecord, (attendance) => attendance.agent)
-  attendance_records: AttendanceRecord[];
+  attendance_records!: AttendanceRecord[];
 
   @OneToMany(() => RevistaRecord, (revista) => revista.agent)
-  revista_records: RevistaRecord[];
+  revista_records!: RevistaRecord[];
 
   @CreateDateColumn()
-  created_at: Date;
+  created_at!: Date;
 
   @UpdateDateColumn()
-  updated_at: Date;
+  updated_at!: Date;
 
   @Column({ nullable: true })
-  legal_norm_type: string; // DECRETO | RESOLUCION_MINISTERIAL | DISPOSICION | RI
+  legal_norm_type!: string | null;
 
   @Column({ nullable: true })
-  legal_norm_number: string;
+  legal_norm_number!: string | null;
 
   @Column({ nullable: true })
-  character_type: string; // TITULAR | INTERINO | SUPLENTE
+  character_type!: string | null;
 }

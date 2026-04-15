@@ -1,16 +1,24 @@
 import {
   Body,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
   Param,
   ParseIntPipe,
-  Request,
+  Patch,
   Post,
+  Query,
+  Request,
   UseGuards,
 } from '@nestjs/common';
 import { AttendanceService } from './attendance.service';
-import { AttendanceRecord } from './entities/attendance-record.entity';
+import {
+  AttendanceConditionType,
+  AttendanceRecord,
+  AttendanceShift,
+  AttendanceStatus,
+} from './entities/attendance-record.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -32,8 +40,25 @@ export class AttendanceController {
   constructor(private readonly attendanceService: AttendanceService) {}
 
   @Get()
-  findAll(@Request() req: AuthenticatedRequest) {
+  findAll(
+    @Request() req: AuthenticatedRequest,
+    @Query('year') year?: string,
+    @Query('month') month?: string,
+    @Query('status') status?: string,
+    @Query('conditionType') conditionType?: string,
+    @Query('shift') shift?: string,
+  ) {
     const user = req.user;
+
+    const filters = {
+      year: year ? Number(year) : undefined,
+      month: month ? Number(month) : undefined,
+      status: status ? (status as AttendanceStatus) : undefined,
+      conditionType: conditionType
+        ? (conditionType as AttendanceConditionType)
+        : undefined,
+      shift: shift ? (shift as AttendanceShift) : undefined,
+    };
 
     if (user.role === 'AGENTE') {
       if (!user.agent_id) {
@@ -42,14 +67,21 @@ export class AttendanceController {
         );
       }
 
-      return this.attendanceService.findByAgent(user.agent_id);
+      return this.attendanceService.findByAgent(user.agent_id, filters);
     }
 
-    return this.attendanceService.findAll();
+    return this.attendanceService.findAll(filters);
   }
 
-  @Get('me/stats')
-  findMyStats(@Request() req: AuthenticatedRequest) {
+  @Get('me')
+  findMyAttendance(
+    @Request() req: AuthenticatedRequest,
+    @Query('year') year?: string,
+    @Query('month') month?: string,
+    @Query('status') status?: string,
+    @Query('conditionType') conditionType?: string,
+    @Query('shift') shift?: string,
+  ) {
     const user = req.user;
 
     if (!user.agent_id) {
@@ -58,13 +90,52 @@ export class AttendanceController {
       );
     }
 
-    return this.attendanceService.getStatsByAgent(user.agent_id);
+    return this.attendanceService.findByAgent(user.agent_id, {
+      year: year ? Number(year) : undefined,
+      month: month ? Number(month) : undefined,
+      status: status ? (status as AttendanceStatus) : undefined,
+      conditionType: conditionType
+        ? (conditionType as AttendanceConditionType)
+        : undefined,
+      shift: shift ? (shift as AttendanceShift) : undefined,
+    });
+  }
+
+  @Get('me/stats')
+  findMyStats(
+    @Request() req: AuthenticatedRequest,
+    @Query('year') year?: string,
+    @Query('month') month?: string,
+    @Query('conditionType') conditionType?: string,
+    @Query('shift') shift?: string,
+  ) {
+    const user = req.user;
+
+    if (!user.agent_id) {
+      throw new ForbiddenException(
+        'El usuario autenticado no está vinculado a un docente/agente.',
+      );
+    }
+
+    return this.attendanceService.getStatsByAgent(user.agent_id, {
+      year: year ? Number(year) : undefined,
+      month: month ? Number(month) : undefined,
+      conditionType: conditionType
+        ? (conditionType as AttendanceConditionType)
+        : undefined,
+      shift: shift ? (shift as AttendanceShift) : undefined,
+    });
   }
 
   @Get('agent/:agentId')
   findByAgent(
     @Request() req: AuthenticatedRequest,
     @Param('agentId', ParseIntPipe) agentId: number,
+    @Query('year') year?: string,
+    @Query('month') month?: string,
+    @Query('status') status?: string,
+    @Query('conditionType') conditionType?: string,
+    @Query('shift') shift?: string,
   ) {
     const user = req.user;
 
@@ -82,12 +153,70 @@ export class AttendanceController {
       }
     }
 
-    return this.attendanceService.findByAgent(agentId);
+    return this.attendanceService.findByAgent(agentId, {
+      year: year ? Number(year) : undefined,
+      month: month ? Number(month) : undefined,
+      status: status ? (status as AttendanceStatus) : undefined,
+      conditionType: conditionType
+        ? (conditionType as AttendanceConditionType)
+        : undefined,
+      shift: shift ? (shift as AttendanceShift) : undefined,
+    });
+  }
+
+  @Get('agent/:agentId/stats')
+  findStatsByAgent(
+    @Request() req: AuthenticatedRequest,
+    @Param('agentId', ParseIntPipe) agentId: number,
+    @Query('year') year?: string,
+    @Query('month') month?: string,
+    @Query('conditionType') conditionType?: string,
+    @Query('shift') shift?: string,
+  ) {
+    const user = req.user;
+
+    if (user.role === 'AGENTE') {
+      if (!user.agent_id) {
+        throw new ForbiddenException(
+          'El usuario AGENTE no está vinculado a un docente/agente.',
+        );
+      }
+
+      if (user.agent_id !== agentId) {
+        throw new ForbiddenException(
+          'El rol AGENTE solo puede ver su propia asistencia.',
+        );
+      }
+    }
+
+    return this.attendanceService.getStatsByAgent(agentId, {
+      year: year ? Number(year) : undefined,
+      month: month ? Number(month) : undefined,
+      conditionType: conditionType
+        ? (conditionType as AttendanceConditionType)
+        : undefined,
+      shift: shift ? (shift as AttendanceShift) : undefined,
+    });
   }
 
   @Roles('ADMIN', 'ADMINISTRATIVO')
   @Post()
   create(@Body() body: Partial<AttendanceRecord>) {
     return this.attendanceService.create(body);
+  }
+
+  @Roles('ADMIN', 'ADMINISTRATIVO')
+  @Patch(':id')
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: Partial<AttendanceRecord>,
+  ) {
+    return this.attendanceService.update(id, body);
+  }
+
+  @Roles('ADMIN', 'ADMINISTRATIVO')
+  @Delete(':id')
+  remove(@Param('id', ParseIntPipe) id: number) {
+    return this.attendanceService.remove(id);
   }
 }
