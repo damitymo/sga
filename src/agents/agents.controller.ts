@@ -86,6 +86,19 @@ export class AgentsController {
     });
   }
 
+  @Get('dni/:dni')
+  findByDni(@Request() req: AuthenticatedRequest, @Param('dni') dni: string) {
+    const user = req.user;
+
+    if (user.role === 'AGENTE') {
+      throw new ForbiddenException(
+        'El rol AGENTE no puede buscar docentes/agentes por DNI.',
+      );
+    }
+
+    return this.agentsService.findByDni(dni);
+  }
+
   @Get('me/full-profile')
   findMyFullProfile(@Request() req: AuthenticatedRequest) {
     const user = req.user;
