@@ -8,20 +8,20 @@ import {
 @Entity('pof_history')
 export class PofHistory {
   @PrimaryGeneratedColumn()
-  id: number;
+  id!: number;
 
   @Column()
-  pof_position_id: number;
+  pof_position_id!: number;
 
   @Column()
-  field_name: string;
+  field_name!: string;
 
   @Column({ type: 'text', nullable: true })
-  old_value: string | null;
+  old_value!: string | null;
 
   @Column({ type: 'text', nullable: true })
-  new_value: string | null;
+  new_value!: string | null;
 
   @CreateDateColumn()
-  created_at: Date;
+  created_at!: Date;
 }

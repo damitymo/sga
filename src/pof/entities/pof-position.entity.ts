@@ -12,59 +12,59 @@ import { RevistaRecord } from '../../revista/entities/revista-record.entity';
 @Entity('pof_positions')
 export class PofPosition {
   @PrimaryGeneratedColumn()
-  id: number;
+  id!: number;
 
-  @Column()
-  plaza_number: string;
+  @Column({ type: 'varchar' })
+  plaza_number!: string;
 
-  @Column({ nullable: true })
-  subject_name: string;
+  @Column({ type: 'varchar', nullable: true })
+  subject_name!: string | null;
 
   @Column({ type: 'int', nullable: true })
-  hours_count: number;
+  hours_count!: number | null;
 
-  @Column({ nullable: true })
-  course: string;
+  @Column({ type: 'varchar', nullable: true })
+  course!: string | null;
 
-  @Column({ nullable: true })
-  division: string;
+  @Column({ type: 'varchar', nullable: true })
+  division!: string | null;
 
-  @Column({ nullable: true })
-  shift: string;
-
-  @Column({ type: 'date', nullable: true })
-  start_date: Date;
+  @Column({ type: 'varchar', nullable: true })
+  shift!: string | null;
 
   @Column({ type: 'date', nullable: true })
-  end_date: Date;
+  start_date!: Date | null;
 
-  @Column({ nullable: true })
-  revista_status: string;
+  @Column({ type: 'date', nullable: true })
+  end_date!: Date | null;
 
-  @Column({ nullable: true })
-  legal_norm: string;
+  @Column({ type: 'varchar', nullable: true })
+  revista_status!: string | null;
 
-  @Column({ nullable: true })
-  vacancy_status: string;
+  @Column({ type: 'varchar', nullable: true })
+  legal_norm!: string | null;
 
-  @Column({ nullable: true })
-  modality: string;
+  @Column({ type: 'varchar', nullable: true })
+  vacancy_status!: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  modality!: string | null;
 
   @Column({ type: 'text', nullable: true })
-  notes: string;
+  notes!: string | null;
 
-  @Column({ default: true })
-  is_active: boolean;
+  @Column({ type: 'boolean', default: true })
+  is_active!: boolean;
 
   @OneToMany(() => AgentAssignment, (assignment) => assignment.pof_position)
-  assignments: AgentAssignment[];
+  assignments!: AgentAssignment[];
 
   @OneToMany(() => RevistaRecord, (revista) => revista.pof_position)
-  revista_records: RevistaRecord[];
+  revista_records!: RevistaRecord[];
 
-  @CreateDateColumn()
-  created_at: Date;
+  @CreateDateColumn({ type: 'timestamp' })
+  created_at!: Date;
 
-  @UpdateDateColumn()
-  updated_at: Date;
+  @UpdateDateColumn({ type: 'timestamp' })
+  updated_at!: Date;
 }

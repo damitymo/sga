@@ -11,11 +11,11 @@ import {
 export class CreateUserDto {
   @IsString()
   @IsNotEmpty()
-  full_name: string;
+  full_name!: string;
 
   @IsString()
   @IsNotEmpty()
-  username: string;
+  username!: string;
 
   @IsOptional()
   @IsEmail()
@@ -23,7 +23,7 @@ export class CreateUserDto {
 
   @IsString()
   @MinLength(6)
-  password: string;
+  password!: string;
 
   @IsOptional()
   @IsString()

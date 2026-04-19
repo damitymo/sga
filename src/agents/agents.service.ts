@@ -4,7 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { ILike, Repository } from 'typeorm';
+import { FindOptionsWhere, ILike, Repository } from 'typeorm';
 import { Agent } from './entities/agent.entity';
 import {
   AttendanceRecord,
@@ -96,7 +96,7 @@ export class AgentsService {
       return [];
     }
 
-    const where: Array<Partial<Record<keyof Agent, any>>> = [];
+    const where: FindOptionsWhere<Agent>[] = [];
 
     if (dni) {
       where.push({ dni: ILike(`%${dni}%`) });
@@ -111,7 +111,6 @@ export class AgentsService {
       where.push({ first_name: ILike(`%${nombre}%`) });
       where.push({ full_name: ILike(`%${nombre}%`) });
     }
-
     if (materia) {
       where.push({ notes: ILike(`%${materia}%`) });
       where.push({ titles: ILike(`%${materia}%`) });
@@ -264,12 +263,20 @@ export class AgentsService {
       },
     });
 
-    return agents.filter((agent) => {
-      if (!agent.birth_date) return false;
+    return agents
+      .filter((agent) => {
+        if (!agent.birth_date) return false;
 
-      const date = new Date(agent.birth_date);
-      return date.getMonth() + 1 === month;
-    });
+        const date = new Date(agent.birth_date);
+        return date.getMonth() + 1 === month;
+      })
+      .map((agent) => {
+        const date = new Date(agent.birth_date as Date);
+        return {
+          ...agent,
+          day: date.getDate(),
+        };
+      });
   }
 
   async findBirthdaysByCurrentMonth() {
@@ -327,7 +334,7 @@ export class AgentsService {
       (item) => item.status === AttendanceStatus.PRESENTE,
     );
 
-    const attendanceStats = {
+    const attendance_stats = {
       total_registros: attendance.length,
       licencias: licencias.length,
       ausentes: ausentes.length,
@@ -337,7 +344,7 @@ export class AgentsService {
     return {
       ...agent,
       attendance,
-      attendance_stats: attendanceStats,
+      attendance_stats,
       licencias,
       ausentes,
       presentes,
