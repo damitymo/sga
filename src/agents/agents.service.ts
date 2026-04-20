@@ -111,6 +111,7 @@ export class AgentsService {
       where.push({ first_name: ILike(`%${nombre}%`) });
       where.push({ full_name: ILike(`%${nombre}%`) });
     }
+
     if (materia) {
       where.push({ notes: ILike(`%${materia}%`) });
       where.push({ titles: ILike(`%${materia}%`) });
@@ -289,7 +290,12 @@ export class AgentsService {
 
     const attendance = await this.attendanceRepository.find({
       where: { agent_id: id },
-      order: { attendance_date: 'DESC', id: 'DESC' },
+      order: {
+        year: 'DESC',
+        month: 'DESC',
+        day: 'DESC',
+        id: 'DESC',
+      },
     });
 
     const assignments = await this.assignmentsRepository.find({
