@@ -7,8 +7,10 @@ import * as fs from 'fs';
 
 import { AppModule } from '../app.module';
 import { Agent } from '../agents/entities/agent.entity';
-import { AttendanceService } from '../attendance/attendance.service';
-import { AttendanceStatus } from '../attendance/entities/attendance-record.entity';
+import {
+  AttendanceRecord,
+  AttendanceStatus,
+} from '../attendance/entities/attendance-record.entity';
 
 type DiagnosticItem = {
   sheet_name: string;
@@ -267,14 +269,15 @@ async function bootstrap() {
     const agentsRepository = app.get<Repository<Agent>>(
       getRepositoryToken(Agent),
     );
-    const attendanceService = app.get<AttendanceService>(AttendanceService);
+
+    const attendanceRepository = app.get<Repository<AttendanceRecord>>(
+      getRepositoryToken(AttendanceRecord),
+    );
 
     const filePathArg = process.argv[2];
     const workbookPath = filePathArg
-      ? path.resolve(filePathArg)
-      : path.resolve(
-          './imports/A-Planilla de Asistencia del Personal 2025(1).xlsx',
-        );
+      ? path.resolve(process.cwd(), filePathArg)
+      : path.resolve(process.cwd(), 'imports', 'attendance2025.xlsx');
 
     if (!fs.existsSync(workbookPath)) {
       throw new Error(`No existe el archivo: ${workbookPath}`);
@@ -284,6 +287,10 @@ async function bootstrap() {
       cellDates: false,
       raw: false,
     });
+
+    console.log(`Archivo abierto: ${workbookPath}`);
+    console.log(`Hojas detectadas: ${workbook.SheetNames.length}`);
+    console.log('Iniciando recorrido de hojas...');
 
     const allAgents = await agentsRepository.find({
       where: { is_active: true },
@@ -345,6 +352,12 @@ async function bootstrap() {
       }
 
       summary.sheets_processed += 1;
+
+      console.log(
+        `Procesando hoja ${summary.sheets_processed}: ${sheetName} | Docente: ${
+          teacherName ?? 'SIN_NOMBRE'
+        } | DNI: ${dni ?? 'SIN_DNI'}`,
+      );
 
       for (let row = MONTH_ROW_START; row <= MONTH_ROW_END; row += 1) {
         const monthCellAddress = `A${row}`;
@@ -410,11 +423,27 @@ async function bootstrap() {
           }
 
           try {
-            await attendanceService.create({
+            const existing = await attendanceRepository.findOne({
+              where: {
+                agent_id: agent.id,
+                attendance_date: attendanceDate,
+                source_sheet_name: sheetName,
+              },
+            });
+
+            if (existing) {
+              summary.duplicates_skipped += 1;
+              continue;
+            }
+
+            const record = attendanceRepository.create({
               agent_id: agent.id,
               attendance_date: attendanceDate,
-              status: mapped.status,
-              raw_code: rawCode,
+              year: 2025,
+              month: monthNumber,
+              day,
+              status: mapped.status!,
+              raw_code: rawCode ?? null,
               condition_type: null,
               shift: null,
               source_sheet_name: sheetName,
@@ -424,20 +453,17 @@ async function bootstrap() {
               import_batch_id: batchId,
             });
 
+            await attendanceRepository.save(record);
             summary.records_created += 1;
+
+            if (summary.records_created % 100 === 0) {
+              console.log(
+                `Registros creados hasta ahora: ${summary.records_created}`,
+              );
+            }
           } catch (error: unknown) {
             const message =
               error instanceof Error ? error.message : 'Error desconocido';
-
-            if (
-              typeof message === 'string' &&
-              message.includes(
-                'Ya existe un registro de asistencia para este agente, fecha y hoja origen.',
-              )
-            ) {
-              summary.duplicates_skipped += 1;
-              continue;
-            }
 
             diagnostics.push({
               sheet_name: sheetName,
@@ -453,6 +479,8 @@ async function bootstrap() {
         }
       }
     }
+
+    console.log('Recorrido finalizado. Generando resumen...');
 
     const diagnosticsPath = path.join(
       importsDir,
