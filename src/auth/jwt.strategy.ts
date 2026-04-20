@@ -13,10 +13,18 @@ type JwtPayload = {
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor() {
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret || jwtSecret.length < 32) {
+      throw new Error(
+        'JWT_SECRET environment variable is missing or too short. ' +
+          'Set a strong secret (>=32 chars) in your environment.',
+      );
+    }
+
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: process.env.JWT_SECRET || 'super-secret-key',
+      secretOrKey: jwtSecret,
     });
   }
 

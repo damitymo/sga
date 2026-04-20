@@ -7,13 +7,10 @@ import {
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
-
-type LoginDto = {
-  username: string;
-  password: string;
-};
+import { LoginDto } from './dto/login.dto';
 
 type AuthenticatedRequest = {
   user: {
@@ -29,6 +26,8 @@ type AuthenticatedRequest = {
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  // 5 intentos por minuto por IP
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('login')
   async login(@Body() body: LoginDto) {
     const user = await this.authService.validateUser(

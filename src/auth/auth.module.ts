@@ -8,12 +8,20 @@ import { AuthService } from './auth.service';
 import { JwtStrategy } from './jwt.strategy';
 import { User } from '../users/entities/user.entity';
 
+const jwtSecret = process.env.JWT_SECRET;
+if (!jwtSecret || jwtSecret.length < 32) {
+  throw new Error(
+    'JWT_SECRET environment variable is missing or too short. ' +
+      'Set a strong secret (>=32 chars) in your environment.',
+  );
+}
+
 @Module({
   imports: [
     TypeOrmModule.forFeature([User]),
     PassportModule,
     JwtModule.register({
-      secret: process.env.JWT_SECRET || 'super-secret-key',
+      secret: jwtSecret,
       signOptions: { expiresIn: '1d' },
     }),
   ],
