@@ -185,8 +185,9 @@ export class AttendanceService {
     return this.attendanceRepository.find({
       where,
       order: {
-        attendance_date: 'DESC',
-        source_sheet_name: 'ASC',
+        year: 'DESC',
+        month: 'DESC',
+        day: 'DESC',
         id: 'DESC',
       },
     });
