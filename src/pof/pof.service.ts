@@ -211,4 +211,166 @@ export class PofService {
       order: { created_at: 'DESC' },
     });
   }
+
+  /**
+   * Resumen por Nivel Funcional, inspirado en el reporte de Estructura POF del
+   * sistema del MEC. Agrupa por el prefijo numérico del `plaza_number` (ej:
+   * "50-774" → grupo "50") y devuelve totales comparables al Excel oficial.
+   *
+   * Se calcula en memoria: el dataset típico de una escuela ronda ~1100
+   * plazas, así que no justifica un query con GROUP BY + subqueries. Si en
+   * algún momento escalamos a muchos establecimientos, convertir a SQL.
+   */
+  async getStructure(): Promise<StructureRow[]> {
+    const positions = await this.pofRepository.find({
+      where: { is_active: true },
+    });
+
+    const activeAssignments = await this.assignmentsRepository.find({
+      where: { status: 'ACTIVA' },
+      relations: ['pof_position'],
+    });
+
+    // Índice: pof_position_id → cantidad de prestaciones (asignaciones) y agentes distintos.
+    const prestacionesByPofId = new Map<number, number>();
+    const agentsByPofId = new Map<number, Set<number>>();
+
+    for (const assignment of activeAssignments) {
+      const pofId = assignment.pof_position?.id;
+      if (!pofId) continue;
+
+      prestacionesByPofId.set(
+        pofId,
+        (prestacionesByPofId.get(pofId) ?? 0) + 1,
+      );
+
+      if (assignment.agent_id != null) {
+        if (!agentsByPofId.has(pofId)) {
+          agentsByPofId.set(pofId, new Set<number>());
+        }
+        agentsByPofId.get(pofId)!.add(assignment.agent_id);
+      }
+    }
+
+    // Acumulador por grupo (prefijo del plaza_number).
+    const buckets = new Map<string, StructureBucket>();
+
+    for (const position of positions) {
+      const plaza = position.plaza_number ?? '';
+      const [rawCode] = plaza.split('-');
+      const code = (rawCode ?? '').trim() || 'SIN-CODIGO';
+
+      if (!buckets.has(code)) {
+        buckets.set(code, {
+          codigo: code,
+          nivel_funcional: NIVEL_FUNCIONAL_BY_CODE[code] ?? 'SIN CLASIFICAR',
+          plazas: 0,
+          plazas_con_prestacion: 0,
+          prestaciones: 0,
+          agentes: new Set<number>(),
+          inconsistentes: 0,
+          hs_catedra: 0,
+          extra_pof_ss: 0,
+          extra_pof_cs: 0,
+        });
+      }
+
+      const bucket = buckets.get(code)!;
+      bucket.plazas += 1;
+
+      const prestCount = prestacionesByPofId.get(position.id) ?? 0;
+      bucket.prestaciones += prestCount;
+
+      if (prestCount > 0) {
+        bucket.plazas_con_prestacion += 1;
+      }
+
+      const agentSet = agentsByPofId.get(position.id);
+      if (agentSet) {
+        for (const agentId of agentSet) {
+          bucket.agentes.add(agentId);
+        }
+      }
+
+      // El grupo "50" (HORAS CATEDRAS COMUNES) acumula horas cátedra en vez
+      // de cargos. Para los demás códigos, hs_catedra queda en 0 y
+      // representan cargos (ver columna "Hs. Cátedra" del reporte del MEC).
+      if (code === '50') {
+        bucket.hs_catedra += position.hours_count ?? 0;
+      }
+    }
+
+    // Orden: por código numérico ascendente; luego los no-numéricos al final.
+    return Array.from(buckets.values())
+      .sort((a, b) => {
+        const aNum = Number(a.codigo);
+        const bNum = Number(b.codigo);
+        const aValid = !Number.isNaN(aNum);
+        const bValid = !Number.isNaN(bNum);
+        if (aValid && bValid) return aNum - bNum;
+        if (aValid) return -1;
+        if (bValid) return 1;
+        return a.codigo.localeCompare(b.codigo);
+      })
+      .map((bucket) => ({
+        codigo: bucket.codigo,
+        nivel_funcional: bucket.nivel_funcional,
+        plazas: bucket.plazas,
+        plazas_con_prestacion: bucket.plazas_con_prestacion,
+        prestaciones: bucket.prestaciones,
+        agentes: bucket.agentes.size,
+        inconsistentes: bucket.inconsistentes,
+        hs_catedra: bucket.hs_catedra,
+        extra_pof_ss: bucket.extra_pof_ss,
+        extra_pof_cs: bucket.extra_pof_cs,
+      }));
+  }
 }
+
+/**
+ * Mapa oficial de códigos de Nivel Funcional, tomado del reporte de Estructura
+ * POF del sistema del MEC (ge.mec.gob.ar). Ampliar si aparecen códigos nuevos.
+ */
+const NIVEL_FUNCIONAL_BY_CODE: Record<string, string> = {
+  '01': 'RECTOR DE PRIMERA',
+  '02': 'VICE-RECTOR DE PRIMERA',
+  '20': 'JEFE DE DEPARTAMENTO',
+  '28': 'SECRETARIO DE PRIMERA',
+  '30': 'JEFE DE PRECEPTORES DE PRIMERA',
+  '32': 'PRECEPTOR',
+  '37': 'JEFE DE TALLER',
+  '41': 'MAESTRO DE ENSEÑANZA PRACTICA',
+  '45': 'JEFE DE SECCION',
+  '49': 'BIBLIOTECARIO',
+  '50': 'HORAS CATEDRAS COMUNES',
+  '72': 'AUXILIAR ADMINISTRATIVO',
+  '73': 'AUXILIAR DE DIRECCION',
+  '81': 'PERSONAL DE SERVICIOS',
+  '96': 'DOCENTE DE APOYO A LA INCLUSION',
+};
+
+type StructureBucket = {
+  codigo: string;
+  nivel_funcional: string;
+  plazas: number;
+  plazas_con_prestacion: number;
+  prestaciones: number;
+  agentes: Set<number>;
+  inconsistentes: number;
+  hs_catedra: number;
+  extra_pof_ss: number;
+  extra_pof_cs: number;
+};
+
+export type StructureRow = {
+  codigo: string;
+  nivel_funcional: string;
+  plazas: number;
+  plazas_con_prestacion: number;
+  prestaciones: number;
+  agentes: number;
+  inconsistentes: number;
+  hs_catedra: number;
+  extra_pof_ss: number;
+  extra_pof_cs: number;
+};

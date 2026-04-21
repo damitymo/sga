@@ -59,6 +59,19 @@ export class PofController {
     });
   }
 
+  @Get('estructura')
+  getStructure(@Request() req: AuthenticatedRequest) {
+    const user = req.user;
+
+    if (user.role === 'AGENTE') {
+      throw new ForbiddenException(
+        'El rol AGENTE no puede consultar la estructura de POF.',
+      );
+    }
+
+    return this.pofService.getStructure();
+  }
+
   @Get('plaza/:plazaNumber')
   findByPlazaNumber(
     @Request() req: AuthenticatedRequest,
