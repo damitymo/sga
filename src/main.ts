@@ -1,11 +1,13 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const config = app.get(ConfigService);
 
   // Render (y la mayoría de PaaS) ponen un reverse proxy delante.
   // Sin esto, throttler / rate-limit verían siempre la misma IP del proxy.
@@ -21,16 +23,17 @@ async function bootstrap() {
     }),
   );
 
-  const allowedOrigins = [
-    'http://localhost:3000',
-    process.env.FRONTEND_URL,
-  ].filter((origin): origin is string => Boolean(origin));
+  const frontendUrl = config.get<string>('FRONTEND_URL');
+  const allowedOrigins = ['http://localhost:3000', frontendUrl].filter(
+    (origin): origin is string => Boolean(origin),
+  );
 
   app.enableCors({
     origin: allowedOrigins,
     credentials: true,
   });
 
-  await app.listen(process.env.PORT ?? 3001);
+  const port = config.get<number>('PORT') ?? 3001;
+  await app.listen(port);
 }
 bootstrap();

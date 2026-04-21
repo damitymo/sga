@@ -20,6 +20,10 @@ export class AgentAssignment {
   @Column({ type: 'int' })
   pof_position_id!: number;
 
+  // eager: true intencional. Los listados de designaciones prácticamente
+  // siempre muestran docente + plaza en la misma tabla (frontend los consume
+  // así). Si en algún momento un listado muy grande se vuelve hot path,
+  // conviene sacar el eager y pasar a `relations` explícitas.
   @ManyToOne(() => Agent, { eager: true, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'agent_id' })
   agent!: Agent;

@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 
@@ -12,19 +13,15 @@ type JwtPayload = {
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor() {
-    const jwtSecret = process.env.JWT_SECRET;
-    if (!jwtSecret || jwtSecret.length < 32) {
-      throw new Error(
-        'JWT_SECRET environment variable is missing or too short. ' +
-          'Set a strong secret (>=32 chars) in your environment.',
-      );
-    }
+  constructor(config: ConfigService) {
+    // La validación de JWT_SECRET ya corre en ConfigModule.validate al boot,
+    // así que acá asumimos que existe y es >= 32 chars.
+    const jwtSecret = config.get<string>('JWT_SECRET');
 
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: jwtSecret,
+      secretOrKey: jwtSecret as string,
     });
   }
 

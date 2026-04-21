@@ -1,98 +1,144 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# SGA Backend
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+API REST del Sistema de Gestión Administrativa escolar.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Stack
 
-## Description
+- **NestJS 11** sobre Node 22
+- **TypeORM 0.3** sobre **PostgreSQL**
+- **JWT + bcrypt** con `@nestjs/jwt` / `@nestjs/passport`
+- **`class-validator` / `class-transformer`** con `ValidationPipe` global (`whitelist`, `transform`)
+- **`helmet`** para headers de seguridad
+- **`@nestjs/throttler`** para rate-limit global (y endpoint-specific en login)
+- **`@nestjs/config`** con validación de env al arranque
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+Deploy: Render (web service + managed Postgres).
 
-## Project setup
+## Estructura
 
-```bash
-$ npm install
+```
+src/
+  agents/          # docentes/agentes
+  assignments/     # designaciones/bajas de agentes en plazas
+  attendance/      # asistencias diarias
+  auth/            # login, guards, roles, strategy
+  config/          # validación de variables de entorno
+  migrations/      # migrations TypeORM (generadas)
+  pof/             # plazas (POF) + historial de cambios
+  revista/         # situación de revista
+  scripts/         # scripts one-off (create-agent-users, reconciliaciones, imports)
+  users/           # usuarios del sistema
+  data-source.ts   # DataSource standalone para el CLI de TypeORM
+  app.module.ts
+  main.ts
 ```
 
-## Compile and run the project
+## Setup local
+
+Requisitos: Node 22+, PostgreSQL 14+.
 
 ```bash
-# development
-$ npm run start
+cp .env.example .env
+# Editá .env con tus credenciales de Postgres y un JWT_SECRET fuerte (>=32 chars).
+# Podés generarlo con:
+#   node -e "console.log(require('crypto').randomBytes(64).toString('base64url'))"
 
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+npm install
+npm run migration:run      # aplica el baseline
+npm run start:dev          # http://localhost:3001
 ```
 
-## Run tests
+Al arrancar, el ConfigModule valida las variables y falla rápido si falta
+alguna crítica (`DB_HOST`, `DB_DATABASE`, `JWT_SECRET`, etc.).
+
+## Variables de entorno
+
+Documentadas en `.env.example`. Resumen:
+
+| Variable | Obligatoria | Default | Notas |
+|---|---|---|---|
+| `NODE_ENV` | No | `development` | `development` / `production` / `test` |
+| `PORT` | No | `3001` | |
+| `DB_HOST` | Sí | — | |
+| `DB_PORT` | No | `5432` | |
+| `DB_USERNAME` | Sí | — | |
+| `DB_PASSWORD` | Sí | — | |
+| `DB_DATABASE` | Sí | — | Acepta `DB_NAME` como fallback legacy |
+| `JWT_SECRET` | Sí | — | ≥ 32 caracteres |
+| `FRONTEND_URL` | No | — | Habilita CORS para esa URL |
+
+## Scripts
 
 ```bash
-# unit tests
-$ npm run test
+npm run start            # start simple
+npm run start:dev        # watch mode
+npm run start:prod       # node dist/main (producción)
+npm run build            # nest build → dist/
 
-# e2e tests
-$ npm run test:e2e
+# migrations (dev, con ts-node)
+npm run migration:create -- src/migrations/NombreMigration
+npm run migration:generate -- src/migrations/NombreMigration
+npm run migration:run
+npm run migration:revert
+npm run migration:show
 
-# test coverage
-$ npm run test:cov
+# migrations (producción, sobre dist/)
+npm run migration:run:prod
+npm run migration:revert:prod
+npm run migration:show:prod
+
+# scripts one-off
+npm run create:agent-users           # crea users AGENTE a partir de agents
+npm run reconcile:revista            # reconcilia revista a partir de assignments
+npm run import:attendance2025        # importa asistencia 2025 desde Excel
+
+# test
+npm run test
+npm run test:e2e
+npm run test:cov
+
+# linting
+npm run lint
 ```
 
-## Deployment
+## Autenticación y roles
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+JWT con expiración de 1 día. El payload incluye `sub` (user.id), `username`, `role`, `full_name` y `agent_id` (si aplica).
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+Roles:
+
+- `ADMIN` — acceso total, incluyendo gestión de usuarios.
+- `ADMINISTRATIVO` — puede leer y escribir sobre agents, POF, assignments, attendance, revista.
+- `AGENTE` — sólo puede ver su propio perfil y asistencia (el user debe estar vinculado a un `agent` vía `user.agent_id`).
+
+El login (`POST /auth/login`) tiene rate-limit estricto: 5 requests por minuto por IP.
+
+## Migrations
+
+El baseline se llama `InitialBaseline1776711747878` y crea el schema completo. Para cambiar el schema:
+
+1. Editar las entities.
+2. `npm run migration:generate -- src/migrations/DescripcionDelCambio` (contra una DB local al día).
+3. Revisar el SQL generado.
+4. `npm run migration:run` en local para testear.
+5. Commitear y deployar; correr `migration:run:prod` en producción.
+
+**Atención:** la DB productiva de Render tiene drift menor con respecto a las entities (enum columns como varchar, FK onDelete, naming de constraints). Ver "Drift conocido" en `docs/base-de-datos-v1.md`. Al generar migrations contra producción podés obtener cambios destructivos no deseados; generá siempre contra una DB local al día.
+
+## Deploy en Render
+
+- Web service con `npm run build` como build command y `npm run start:prod` como start command.
+- Managed Postgres vinculado con las variables `DB_*` (Render las inyecta o configurás manual).
+- Setear `JWT_SECRET` y `FRONTEND_URL` en el dashboard.
+- `trust proxy` ya está activado en `main.ts`, necesario para que el rate-limit funcione detrás del reverse proxy de Render.
+
+Para aplicar migrations en Render, correlas en un one-off shell:
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+npm run migration:run:prod
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+## Documentación adicional
 
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+- [`../docs/base-de-datos-v1.md`](../docs/base-de-datos-v1.md) — schema real, relaciones y reglas funcionales.
+- [`../README.md`](../README.md) — README general del monorepo.

@@ -16,6 +16,8 @@ import { PofPosition } from './entities/pof-position.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
+import { CreatePofPositionDto } from './dto/create-pof-position.dto';
+import { UpdatePofPositionDto } from './dto/update-pof-position.dto';
 
 type AuthenticatedRequest = {
   user: {
@@ -88,14 +90,17 @@ export class PofController {
 
   @Roles('ADMIN', 'ADMINISTRATIVO')
   @Post()
-  create(@Body() body: Partial<PofPosition>) {
-    return this.pofService.create(body);
+  create(@Body() body: CreatePofPositionDto) {
+    return this.pofService.create(body as unknown as Partial<PofPosition>);
   }
 
   @Roles('ADMIN', 'ADMINISTRATIVO')
   @Patch(':id')
-  update(@Param('id') id: string, @Body() body: Partial<PofPosition>) {
-    return this.pofService.update(Number(id), body);
+  update(@Param('id') id: string, @Body() body: UpdatePofPositionDto) {
+    return this.pofService.update(
+      Number(id),
+      body as unknown as Partial<PofPosition>,
+    );
   }
 
   @Roles('ADMIN', 'ADMINISTRATIVO')

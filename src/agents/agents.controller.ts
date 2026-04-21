@@ -17,6 +17,8 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { Agent } from './entities/agent.entity';
+import { CreateAgentDto } from './dto/create-agent.dto';
+import { UpdateAgentDto } from './dto/update-agent.dto';
 
 type AuthenticatedRequest = {
   user: {
@@ -36,8 +38,8 @@ export class AgentsController {
 
   @Roles('ADMIN', 'ADMINISTRATIVO')
   @Post()
-  create(@Body() body: Partial<Agent>) {
-    return this.agentsService.create(body);
+  create(@Body() body: CreateAgentDto) {
+    return this.agentsService.create(body as unknown as Partial<Agent>);
   }
 
   @Get()
@@ -162,8 +164,8 @@ export class AgentsController {
 
   @Roles('ADMIN', 'ADMINISTRATIVO')
   @Patch(':id')
-  update(@Param('id', ParseIntPipe) id: number, @Body() body: Partial<Agent>) {
-    return this.agentsService.update(id, body);
+  update(@Param('id', ParseIntPipe) id: number, @Body() body: UpdateAgentDto) {
+    return this.agentsService.update(id, body as unknown as Partial<Agent>);
   }
 
   @Roles('ADMIN', 'ADMINISTRATIVO')

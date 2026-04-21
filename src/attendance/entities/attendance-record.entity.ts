@@ -46,8 +46,11 @@ export class AttendanceRecord {
   @Column({ type: 'int' })
   agent_id!: number;
 
+  // Relación lazy: attendance_records puede tener miles de filas por agente.
+  // Traer el Agent en cada fila (como hacía el eager: true) inflaba la payload
+  // y complicaba los listados. Pedir explícitamente con `relations: { agent: true }`
+  // cuando se necesite (típicamente en el listado admin general).
   @ManyToOne(() => Agent, (agent) => agent.attendance_records, {
-    eager: true,
     onDelete: 'CASCADE',
   })
   @JoinColumn({ name: 'agent_id' })
@@ -65,27 +68,20 @@ export class AttendanceRecord {
   @Column({ type: 'int' })
   day!: number;
 
-  @Column({
-    type: 'enum',
-    enum: AttendanceStatus,
-  })
+  // status/condition_type/shift se guardan como varchar en la DB productiva.
+  // Mantenemos los enums de TS para validar/normalizar a nivel aplicación,
+  // pero no usamos el enum de Postgres (costoso de alterar y no aporta
+  // seguridad adicional respecto al ValidationPipe + normalización del service).
+  @Column({ type: 'varchar' })
   status!: AttendanceStatus;
 
   @Column({ type: 'varchar', length: 20, nullable: true })
   raw_code!: string | null;
 
-  @Column({
-    type: 'enum',
-    enum: AttendanceConditionType,
-    nullable: true,
-  })
+  @Column({ type: 'varchar', nullable: true })
   condition_type!: AttendanceConditionType | null;
 
-  @Column({
-    type: 'enum',
-    enum: AttendanceShift,
-    nullable: true,
-  })
+  @Column({ type: 'varchar', nullable: true })
   shift!: AttendanceShift | null;
 
   @Column({ type: 'varchar', length: 255, nullable: true })

@@ -22,6 +22,8 @@ import {
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
+import { CreateAttendanceRecordDto } from './dto/create-attendance-record.dto';
+import { UpdateAttendanceRecordDto } from './dto/update-attendance-record.dto';
 
 type AuthenticatedRequest = {
   user: {
@@ -201,17 +203,22 @@ export class AttendanceController {
 
   @Roles('ADMIN', 'ADMINISTRATIVO')
   @Post()
-  create(@Body() body: Partial<AttendanceRecord>) {
-    return this.attendanceService.create(body);
+  create(@Body() body: CreateAttendanceRecordDto) {
+    return this.attendanceService.create(
+      body as unknown as Partial<AttendanceRecord>,
+    );
   }
 
   @Roles('ADMIN', 'ADMINISTRATIVO')
   @Patch(':id')
   update(
     @Param('id', ParseIntPipe) id: number,
-    @Body() body: Partial<AttendanceRecord>,
+    @Body() body: UpdateAttendanceRecordDto,
   ) {
-    return this.attendanceService.update(id, body);
+    return this.attendanceService.update(
+      id,
+      body as unknown as Partial<AttendanceRecord>,
+    );
   }
 
   @Roles('ADMIN', 'ADMINISTRATIVO')

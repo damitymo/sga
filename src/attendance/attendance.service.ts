@@ -182,8 +182,13 @@ export class AttendanceService {
     if (filters?.conditionType) where.condition_type = filters.conditionType;
     if (filters?.shift) where.shift = filters.shift;
 
+    // Si el listado no está filtrado por agente específico, traemos el Agent
+    // para mostrar nombre/DNI en la tabla. Si sí hay agentId, es innecesario.
+    const includeAgent = !filters?.agentId;
+
     return this.attendanceRepository.find({
       where,
+      relations: includeAgent ? { agent: true } : undefined,
       order: {
         year: 'DESC',
         month: 'DESC',
@@ -210,6 +215,9 @@ export class AttendanceService {
   async findOne(id: number) {
     const record = await this.attendanceRepository.findOne({
       where: { id },
+      // Traemos el agent para preservar el shape que antes devolvía el eager.
+      // Es un findOne puntual, no es hot path.
+      relations: { agent: true },
     });
 
     if (!record) {

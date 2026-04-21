@@ -38,7 +38,12 @@ export class User {
   @Column({ type: 'int', nullable: true })
   agent_id!: number | null;
 
-  @ManyToOne(() => Agent, { nullable: true, eager: true })
+  // Relación lazy: si algún endpoint necesita el Agent completo, pedir
+  // explícitamente con `relations: { agent: true }` en el findOne/find.
+  // Internamente el dominio sólo usa user.agent_id.
+  // onDelete: 'SET NULL' refleja el comportamiento real en Render: si se borra
+  // el agente, el user queda sin vínculo pero no cae en cascada.
+  @ManyToOne(() => Agent, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'agent_id' })
   agent!: Agent | null;
 

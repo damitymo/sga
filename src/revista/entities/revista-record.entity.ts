@@ -24,6 +24,11 @@ export class RevistaRecord {
   @Column({ type: 'int', nullable: true })
   assignment_id!: number | null;
 
+  // eager: true intencional. El frontend muestra la situación de revista
+  // (actual e histórica) con agente + plaza + designación origen en la misma
+  // vista. Sacar el eager requeriría agregar `relations` en cada find del
+  // service y no trae beneficio inmediato porque los volúmenes son acotados
+  // (una revista_record por cambio de situación, no por día).
   @ManyToOne(() => Agent, { eager: true, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'agent_id' })
   agent!: Agent;

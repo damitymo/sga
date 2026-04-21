@@ -1,0 +1,94 @@
+import {
+  IsBoolean,
+  IsDateString,
+  IsEmail,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+} from 'class-validator';
+
+export class CreateAgentDto {
+  @IsString()
+  @IsNotEmpty()
+  full_name!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  dni!: string;
+
+  @IsOptional()
+  @IsString()
+  last_name?: string;
+
+  @IsOptional()
+  @IsString()
+  first_name?: string;
+
+  @IsOptional()
+  @IsDateString()
+  birth_date?: string;
+
+  @IsOptional()
+  @IsString()
+  address?: string;
+
+  @IsOptional()
+  @IsString()
+  phone?: string;
+
+  @IsOptional()
+  @IsString()
+  mobile?: string;
+
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @IsOptional()
+  @IsString()
+  teaching_file_number?: string;
+
+  @IsOptional()
+  @IsString()
+  board_file_number?: string;
+
+  @IsOptional()
+  @IsString()
+  secondary_board_number?: string;
+
+  @IsOptional()
+  @IsDateString()
+  school_entry_date?: string;
+
+  @IsOptional()
+  @IsDateString()
+  teaching_entry_date?: string;
+
+  @IsOptional()
+  @IsString()
+  titles?: string;
+
+  @IsOptional()
+  @IsString()
+  identity_card_number?: string;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  is_active?: boolean;
+
+  @IsOptional()
+  @IsString()
+  legal_norm_type?: string;
+
+  @IsOptional()
+  @IsString()
+  legal_norm_number?: string;
+
+  @IsOptional()
+  @IsString()
+  character_type?: string;
+}
