@@ -3,6 +3,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
@@ -14,6 +15,9 @@ async function bootstrap() {
   app.set('trust proxy', 1);
 
   app.use(helmet());
+
+  // Necesario para leer la cookie httpOnly con el JWT desde jwt.strategy.
+  app.use(cookieParser());
 
   app.useGlobalPipes(
     new ValidationPipe({

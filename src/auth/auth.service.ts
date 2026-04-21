@@ -51,6 +51,10 @@ export class AuthService {
     };
   }
 
+  /**
+   * Devuelve el token firmado y el user "safe" (sin password_hash).
+   * El controller decide cómo entregarlos (cookie httpOnly + body con user).
+   */
   login(user: SafeUser) {
     const payload = {
       sub: user.id,
