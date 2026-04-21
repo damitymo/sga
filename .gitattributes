@@ -1,0 +1,13 @@
+# Forzar LF en todos los archivos de texto. Evita que los editores
+# en Windows (CRLF) generen diffs falsos de "archivo entero cambiado".
+* text=auto eol=lf
+
+# Binarios que no hay que tocar.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.xls binary
+*.xlsx binary
