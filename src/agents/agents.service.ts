@@ -306,27 +306,61 @@ export class AgentsService {
       },
     });
 
-    const revistaActual = await this.revistaRepository.find({
-      where: {
-        agent_id: id,
-        is_current: true,
-      },
-      order: {
-        start_date: 'DESC',
-        id: 'DESC',
-      },
+    // La tabla revista_records todavía no se popula desde el import, así que
+    // derivamos la situación de revista directamente desde las assignments.
+    // Una assignment activa (status === 'ACTIVA') es revista actual; las
+    // cerradas / finalizadas son revista histórica. Mantenemos la shape que
+    // espera el frontend (RevistaItem con pof_position, character_type, etc.)
+    // para no romper los panels.
+    const toRevistaItem = (a: AgentAssignment) => ({
+      id: a.id,
+      revista_type: null,
+      character_type: a.character_type,
+      start_date: a.assignment_date
+        ? new Date(a.assignment_date as unknown as string)
+            .toISOString()
+            .slice(0, 10)
+        : null,
+      end_date: a.end_date
+        ? new Date(a.end_date as unknown as string).toISOString().slice(0, 10)
+        : null,
+      legal_norm:
+        [a.legal_norm_type, a.legal_norm_number].filter(Boolean).join(' ') ||
+        a.legal_norm ||
+        null,
+      resolution_number: a.resolution_number,
+      notes: a.notes,
+      pof_position: a.pof_position
+        ? {
+            plaza_number: a.pof_position.plaza_number,
+            subject_name: a.pof_position.subject_name,
+            hours_count: a.pof_position.hours_count,
+            course: a.pof_position.course,
+            division: a.pof_position.division,
+            shift: a.pof_position.shift,
+          }
+        : null,
     });
 
-    const revistaHistorica = await this.revistaRepository.find({
-      where: {
-        agent_id: id,
-        is_current: false,
-      },
-      order: {
-        start_date: 'DESC',
-        id: 'DESC',
-      },
-    });
+    const sortedByStart = (a: AgentAssignment, b: AgentAssignment) => {
+      const ta = a.assignment_date
+        ? new Date(a.assignment_date as unknown as string).getTime()
+        : 0;
+      const tb = b.assignment_date
+        ? new Date(b.assignment_date as unknown as string).getTime()
+        : 0;
+      return tb - ta;
+    };
+
+    const revistaActual = assignments
+      .filter((a) => a.status === 'ACTIVA')
+      .sort(sortedByStart)
+      .map(toRevistaItem);
+
+    const revistaHistorica = assignments
+      .filter((a) => a.status !== 'ACTIVA')
+      .sort(sortedByStart)
+      .map(toRevistaItem);
 
     const licencias = attendance.filter(
       (item) => item.status === AttendanceStatus.LICENCIA,

@@ -30,6 +30,21 @@ export class Agent {
   @Column({ type: 'date', nullable: true })
   birth_date!: Date | null;
 
+  // Campos del legajo que imita la vista MEC (Gestión Educativa).
+  // Son nullable porque los Excel de origen no siempre los traen;
+  // se completan a mano desde el form de admin.
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  sex!: string | null;
+
+  @Column({ type: 'varchar', length: 40, nullable: true })
+  marital_status!: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  birth_place!: string | null;
+
+  @Column({ type: 'varchar', length: 60, nullable: true })
+  nationality!: string | null;
+
   @Column({ type: 'varchar', nullable: true })
   address!: string | null;
 

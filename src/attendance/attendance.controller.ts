@@ -103,6 +103,24 @@ export class AttendanceController {
     });
   }
 
+  @Get('me/grid')
+  findMyGrid(
+    @Request() req: AuthenticatedRequest,
+    @Query('year') year?: string,
+  ) {
+    const user = req.user;
+
+    if (!user.agent_id) {
+      throw new ForbiddenException(
+        'El usuario autenticado no está vinculado a un docente/agente.',
+      );
+    }
+
+    const parsedYear = year ? Number(year) : new Date().getFullYear();
+
+    return this.attendanceService.getAnnualGrid(user.agent_id, parsedYear);
+  }
+
   @Get('me/stats')
   findMyStats(
     @Request() req: AuthenticatedRequest,
@@ -164,6 +182,33 @@ export class AttendanceController {
         : undefined,
       shift: shift ? (shift as AttendanceShift) : undefined,
     });
+  }
+
+  @Get('agent/:agentId/grid')
+  findGridByAgent(
+    @Request() req: AuthenticatedRequest,
+    @Param('agentId', ParseIntPipe) agentId: number,
+    @Query('year') year?: string,
+  ) {
+    const user = req.user;
+
+    if (user.role === 'AGENTE') {
+      if (!user.agent_id) {
+        throw new ForbiddenException(
+          'El usuario AGENTE no está vinculado a un docente/agente.',
+        );
+      }
+
+      if (user.agent_id !== agentId) {
+        throw new ForbiddenException(
+          'El rol AGENTE solo puede ver su propia asistencia.',
+        );
+      }
+    }
+
+    const parsedYear = year ? Number(year) : new Date().getFullYear();
+
+    return this.attendanceService.getAnnualGrid(agentId, parsedYear);
   }
 
   @Get('agent/:agentId/stats')

@@ -29,6 +29,22 @@ export class UpdateAgentDto {
 
   @IsOptional()
   @IsString()
+  sex?: string;
+
+  @IsOptional()
+  @IsString()
+  marital_status?: string;
+
+  @IsOptional()
+  @IsString()
+  birth_place?: string;
+
+  @IsOptional()
+  @IsString()
+  nationality?: string;
+
+  @IsOptional()
+  @IsString()
   address?: string;
 
   @IsOptional()

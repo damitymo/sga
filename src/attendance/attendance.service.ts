@@ -35,6 +35,41 @@ type AttendanceStats = {
   };
 };
 
+/**
+ * Shape de la grilla estilo libro de asistencia del MEC: filas = mes,
+ * columnas = días 1..31, totales a la derecha + totales anuales al final.
+ * Cada celda es el raw_code original (P/F/S/D/AJ/AI/L1/L2/H/etc).
+ */
+export type AttendanceGridDay = {
+  day: number;
+  raw_code: string | null;
+  status: string | null;
+  observation: string | null;
+};
+
+export type AttendanceGridMonthTotals = {
+  dicto: number;
+  ai: number;
+  aj: number;
+  lic1: number;
+  lic2: number;
+  deb_dic: number;
+  pct_asist: number;
+};
+
+export type AttendanceGridMonth = {
+  month: number; // 1..12
+  days: AttendanceGridDay[]; // siempre 31 posiciones (los días inválidos quedan con raw_code=null)
+  totals: AttendanceGridMonthTotals;
+};
+
+export type AttendanceGrid = {
+  agent_id: number;
+  year: number;
+  months: AttendanceGridMonth[];
+  year_totals: AttendanceGridMonthTotals;
+};
+
 @Injectable()
 export class AttendanceService {
   constructor(
@@ -265,6 +300,143 @@ export class AttendanceService {
         PRESENTE: calc(counts.PRESENTE),
         AUSENTE_INJUSTIFICADO: calc(counts.AUSENTE_INJUSTIFICADO),
         LICENCIA: calc(counts.LICENCIA),
+      },
+    };
+  }
+
+  /**
+   * Devuelve la asistencia anual de un agente en formato grilla del libro
+   * oficial del MEC. Solo lee datos: agrupa los AttendanceRecord del año
+   * por mes/día y arma los totales mensuales y anuales.
+   *
+   * Los códigos que cuentan en cada columna vienen del Excel de origen:
+   *  - DICTO  = días con raw_code entre P, F (feriado), AJ (cuenta como
+   *             dictado con justificación), AI (cuenta como dictado pero
+   *             ausente), L1 y L2 (días con licencia también cuentan
+   *             como días hábiles del mes).
+   *  - AI     = raw_code === 'AI'
+   *  - AJ     = raw_code === 'AJ'
+   *  - Lic. 1 = raw_code === 'L1'
+   *  - Lic. 2 = raw_code === 'L2'
+   *  - Deb. Dic. = suma de días hábiles (cuando faltan marcas)
+   *  - % Asist = (DICTO − AI) / DICTO × 100
+   *
+   * Si el dataset del año está vacío, la grilla se devuelve igual con los
+   * 12 meses en 0 — así el frontend siempre puede pintar la tabla.
+   */
+  async getAnnualGrid(agentId: number, year: number): Promise<AttendanceGrid> {
+    const records = await this.attendanceRepository.find({
+      where: { agent_id: agentId, year },
+      order: { month: 'ASC', day: 'ASC', id: 'ASC' },
+    });
+
+    // Índice mes -> día -> record más reciente.
+    // Si un mismo día aparece en varias hojas fuente (source_sheet_name
+    // distinto), el más reciente (por id) gana para la grilla.
+    const byMonthDay = new Map<string, AttendanceRecord>();
+    for (const r of records) {
+      byMonthDay.set(`${r.month}-${r.day}`, r);
+    }
+
+    const months: AttendanceGridMonth[] = [];
+
+    let yDicto = 0;
+    let yAi = 0;
+    let yAj = 0;
+    let yL1 = 0;
+    let yL2 = 0;
+    let yDebDic = 0;
+
+    for (let m = 1; m <= 12; m += 1) {
+      const days: AttendanceGridDay[] = [];
+      let dicto = 0;
+      let ai = 0;
+      let aj = 0;
+      let lic1 = 0;
+      let lic2 = 0;
+      let debDic = 0;
+
+      const lastDay = new Date(year, m, 0).getDate(); // 28..31 real del mes
+
+      for (let d = 1; d <= 31; d += 1) {
+        const record = byMonthDay.get(`${m}-${d}`);
+        const code = record?.raw_code?.toUpperCase() ?? null;
+
+        if (d > lastDay) {
+          // Día inexistente en el mes (ej: 30 feb). Fila en blanco.
+          days.push({
+            day: d,
+            raw_code: null,
+            status: null,
+            observation: null,
+          });
+          continue;
+        }
+
+        days.push({
+          day: d,
+          raw_code: code,
+          status: record?.status ?? null,
+          observation: record?.observation ?? null,
+        });
+
+        // S (sábado) y D (domingo) son no-hábiles en el libro: no suman
+        // dicto ni débito. El resto de códigos sí es día "cargado".
+        if (code === 'S' || code === 'D') continue;
+
+        if (!code) {
+          // Día hábil sin marca: va a "Deb. Dic." (débito a dictar).
+          debDic += 1;
+          continue;
+        }
+
+        dicto += 1;
+        if (code === 'AI') ai += 1;
+        if (code === 'AJ') aj += 1;
+        if (code === 'L1') lic1 += 1;
+        if (code === 'L2') lic2 += 1;
+      }
+
+      const pctAsist =
+        dicto > 0 ? Number((((dicto - ai) / dicto) * 100).toFixed(2)) : 0;
+
+      months.push({
+        month: m,
+        days,
+        totals: {
+          dicto,
+          ai,
+          aj,
+          lic1,
+          lic2,
+          deb_dic: debDic,
+          pct_asist: pctAsist,
+        },
+      });
+
+      yDicto += dicto;
+      yAi += ai;
+      yAj += aj;
+      yL1 += lic1;
+      yL2 += lic2;
+      yDebDic += debDic;
+    }
+
+    const yPct =
+      yDicto > 0 ? Number((((yDicto - yAi) / yDicto) * 100).toFixed(2)) : 0;
+
+    return {
+      agent_id: agentId,
+      year,
+      months,
+      year_totals: {
+        dicto: yDicto,
+        ai: yAi,
+        aj: yAj,
+        lic1: yL1,
+        lic2: yL2,
+        deb_dic: yDebDic,
+        pct_asist: yPct,
       },
     };
   }
