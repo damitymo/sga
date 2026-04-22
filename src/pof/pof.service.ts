@@ -13,19 +13,112 @@ type PofFilters = {
   curso?: string;
 };
 
-type CurrentHolder = {
+type Holder = {
   assignment_id: number;
   agent_id: number | null;
   full_name: string | null;
   dni: string | null;
   movement_type: string | null;
+  character_type: string | null;
   assignment_date: Date | null;
+  end_date: Date | null;
   status: string | null;
 };
 
+/**
+ * Resultado por plaza para la lista/detalle de POF.
+ *
+ * - `current_holder`: docente que está rindiendo servicio hoy.
+ *   Si hay un SUPLENTE activo, él es el actual (porque el titular
+ *   está cubierto con licencia). Si no, la asignación ACTIVA más
+ *   reciente por fecha.
+ * - `covered_titular`: cuando hay un suplente cubriendo, este campo
+ *   expone al titular/interino con licencia. Null si no aplica.
+ * - `previous_holder`: última asignación FINALIZADA (o con end_date
+ *   en el pasado) para esta plaza, ordenada por fecha de cierre desc.
+ */
 type PofResult = PofPosition & {
-  current_holder: CurrentHolder | null;
+  current_holder: Holder | null;
+  covered_titular: Holder | null;
+  previous_holder: Holder | null;
 };
+
+const CARACTER_SUPLENTE = ['SUPLENTE'];
+const CARACTER_TITULAR_INTERINO = ['TITULAR', 'INTERINO'];
+
+function normalizeCaracter(value: string | null | undefined): string {
+  return (value ?? '').toUpperCase().trim();
+}
+
+function isSuplente(assignment: AgentAssignment): boolean {
+  const c = normalizeCaracter(assignment.character_type);
+  return CARACTER_SUPLENTE.includes(c);
+}
+
+function isTitularOrInterino(assignment: AgentAssignment): boolean {
+  const c = normalizeCaracter(assignment.character_type);
+  return CARACTER_TITULAR_INTERINO.includes(c);
+}
+
+function toHolder(assignment: AgentAssignment): Holder {
+  return {
+    assignment_id: assignment.id,
+    agent_id: assignment.agent?.id ?? null,
+    full_name: assignment.agent?.full_name ?? null,
+    dni: assignment.agent?.dni ?? null,
+    movement_type: assignment.movement_type ?? null,
+    character_type: assignment.character_type ?? null,
+    assignment_date: assignment.assignment_date ?? null,
+    end_date: assignment.end_date ?? null,
+    status: assignment.status ?? null,
+  };
+}
+
+function dateDesc(a: Date | null | undefined, b: Date | null | undefined): number {
+  const ta = a ? new Date(a).getTime() : 0;
+  const tb = b ? new Date(b).getTime() : 0;
+  return tb - ta;
+}
+
+/**
+ * Dado el conjunto de asignaciones de UNA plaza, decide quién es
+ * el actual, el titular cubierto (si aplica) y el anterior cerrado.
+ */
+function classifyAssignments(assignments: AgentAssignment[]): {
+  current: Holder | null;
+  covered: Holder | null;
+  previous: Holder | null;
+} {
+  const activas = assignments.filter((a) => a.status === 'ACTIVA');
+  const cerradas = assignments
+    .filter((a) => a.status !== 'ACTIVA')
+    .sort((a, b) => dateDesc(a.end_date ?? a.assignment_date, b.end_date ?? b.assignment_date));
+
+  let current: AgentAssignment | null = null;
+  let covered: AgentAssignment | null = null;
+
+  const suplente = activas.find(isSuplente);
+
+  if (suplente) {
+    current = suplente;
+    // Entre los demás activos, buscamos a un titular/interino con la misma plaza
+    // (aunque en un caso normal habrá sólo uno).
+    const titular = activas.find(
+      (a) => a.id !== suplente.id && isTitularOrInterino(a),
+    );
+    if (titular) covered = titular;
+  } else if (activas.length > 0) {
+    current = activas
+      .slice()
+      .sort((a, b) => dateDesc(a.assignment_date, b.assignment_date))[0];
+  }
+
+  return {
+    current: current ? toHolder(current) : null,
+    covered: covered ? toHolder(covered) : null,
+    previous: cerradas[0] ? toHolder(cerradas[0]) : null,
+  };
+}
 
 @Injectable()
 export class PofService {
@@ -67,50 +160,50 @@ export class PofService {
       order: { plaza_number: 'ASC' },
     });
 
-    const activeAssignments = await this.assignmentsRepository.find({
-      where: { status: 'ACTIVA' },
+    // Traemos TODAS las asignaciones (activas + cerradas) en un solo query.
+    // Con ~1100 plazas y 1-3 asignaciones por plaza, es manejable en memoria
+    // y nos evita N+1 queries al clasificar actual/cubierto/anterior.
+    const allAssignments = await this.assignmentsRepository.find({
       relations: ['agent', 'pof_position'],
       order: { assignment_date: 'DESC' },
     });
 
-    const currentByPofId = new Map<number, AgentAssignment>();
+    const byPofId = new Map<number, AgentAssignment[]>();
 
-    for (const assignment of activeAssignments) {
-      if (!assignment.pof_position?.id) continue;
-
-      if (!currentByPofId.has(assignment.pof_position.id)) {
-        currentByPofId.set(assignment.pof_position.id, assignment);
-      }
+    for (const assignment of allAssignments) {
+      const pofId = assignment.pof_position?.id;
+      if (!pofId) continue;
+      if (!byPofId.has(pofId)) byPofId.set(pofId, []);
+      byPofId.get(pofId)!.push(assignment);
     }
 
     let result: PofResult[] = positions.map((position) => {
-      const currentAssignment = currentByPofId.get(position.id);
+      const { current, covered, previous } = classifyAssignments(
+        byPofId.get(position.id) ?? [],
+      );
 
       return {
         ...position,
-        current_holder: currentAssignment
-          ? {
-              assignment_id: currentAssignment.id,
-              agent_id: currentAssignment.agent?.id ?? null,
-              full_name: currentAssignment.agent?.full_name ?? null,
-              dni: currentAssignment.agent?.dni ?? null,
-              movement_type: currentAssignment.movement_type ?? null,
-              assignment_date: currentAssignment.assignment_date ?? null,
-              status: currentAssignment.status ?? null,
-            }
-          : null,
+        current_holder: current,
+        covered_titular: covered,
+        previous_holder: previous,
       };
     });
 
-    // 🔎 filtro por docente
+    // 🔎 filtro por docente: aplica sobre actual O titular cubierto O anterior,
+    // así el usuario puede encontrar un docente aunque esté con licencia o
+    // haya dejado la plaza hace poco.
     if (filters?.docente?.trim()) {
       const docenteFilter = filters.docente.trim().toLowerCase();
 
       result = result.filter((item) => {
-        const fullName = item.current_holder?.full_name;
-        return fullName
-          ? fullName.toLowerCase().includes(docenteFilter)
-          : false;
+        const names = [
+          item.current_holder?.full_name,
+          item.covered_titular?.full_name,
+          item.previous_holder?.full_name,
+        ];
+
+        return names.some((n) => n?.toLowerCase().includes(docenteFilter));
       });
     }
 
@@ -130,28 +223,19 @@ export class PofService {
 
     if (!position) return null;
 
-    const currentAssignment = await this.assignmentsRepository.findOne({
-      where: {
-        pof_position_id: position.id,
-        status: 'ACTIVA',
-      },
+    const assignments = await this.assignmentsRepository.find({
+      where: { pof_position_id: position.id },
       relations: ['agent', 'pof_position'],
       order: { assignment_date: 'DESC' },
     });
 
+    const { current, covered, previous } = classifyAssignments(assignments);
+
     return {
       ...position,
-      current_holder: currentAssignment
-        ? {
-            assignment_id: currentAssignment.id,
-            agent_id: currentAssignment.agent?.id ?? null,
-            full_name: currentAssignment.agent?.full_name ?? null,
-            dni: currentAssignment.agent?.dni ?? null,
-            movement_type: currentAssignment.movement_type ?? null,
-            assignment_date: currentAssignment.assignment_date ?? null,
-            status: currentAssignment.status ?? null,
-          }
-        : null,
+      current_holder: current,
+      covered_titular: covered,
+      previous_holder: previous,
     };
   }
 

@@ -1,6 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { ILike, Repository } from 'typeorm';
+import { DeepPartial, ILike, In, Repository } from 'typeorm';
 import * as XLSX from 'xlsx';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -8,7 +8,8 @@ import * as fs from 'fs';
 import { AppModule } from '../app.module';
 import { Agent } from '../agents/entities/agent.entity';
 import { PofPosition } from '../pof/entities/pof-position.entity';
-import { AssignmentsService } from '../assignments/assignments.service';
+import { AgentAssignment } from '../assignments/entities/agent-assignment.entity';
+import { RevistaRecord } from '../revista/entities/revista-record.entity';
 
 type AgentRow = {
   DOCENTE?: string;
@@ -276,6 +277,44 @@ async function findAgentByIdentity(
   return { agent: null, method: 'no-encontrado' };
 }
 
+/**
+ * Normaliza el string de SIT. REVISTA del Excel a uno de los valores que
+ * el sistema maneja a nivel asignación (character_type): TITULAR / INTERINO /
+ * SUPLENTE. Si no matchea ninguno, devuelve undefined y lo dejamos tal cual
+ * (el filtro del frontend y la lógica de clasificación tolera valores raros).
+ */
+function normalizeCharacterType(
+  value: unknown,
+): 'TITULAR' | 'INTERINO' | 'SUPLENTE' | undefined {
+  const text = normalizeString(value);
+  if (!text) return undefined;
+
+  const upper = text
+    .toUpperCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+  if (upper.includes('SUPL')) return 'SUPLENTE';
+  if (upper.includes('INTER')) return 'INTERINO';
+  if (upper.includes('TITUL')) return 'TITULAR';
+
+  return undefined;
+}
+
+/**
+ * Prioridad para decidir cuál fila representa a la plaza a nivel "metadata"
+ * cuando una misma plaza_number aparece varias veces (ej: titular con licencia
+ * + suplente cubriendo). La fila TITULAR manda sobre INTERINO, y ambas sobre
+ * SUPLENTE. Si no hay carácter detectable, cae al final.
+ */
+function caracterPriority(value: unknown): number {
+  const c = normalizeCharacterType(value);
+  if (c === 'TITULAR') return 0;
+  if (c === 'INTERINO') return 1;
+  if (c === 'SUPLENTE') return 2;
+  return 3;
+}
+
 async function bootstrap() {
   const app = await NestFactory.createApplicationContext(AppModule);
 
@@ -285,7 +324,12 @@ async function bootstrap() {
   const pofRepository = app.get<Repository<PofPosition>>(
     getRepositoryToken(PofPosition),
   );
-  const assignmentsService = app.get(AssignmentsService);
+  const assignmentsRepository = app.get<Repository<AgentAssignment>>(
+    getRepositoryToken(AgentAssignment),
+  );
+  const revistaRepository = app.get<Repository<RevistaRecord>>(
+    getRepositoryToken(RevistaRecord),
+  );
 
   const importsDir = path.join(process.cwd(), 'imports');
   const agentsFile = path.join(importsDir, 'Planilla de Datos Agentes.xlsx');
@@ -365,6 +409,13 @@ async function bootstrap() {
   // =========================
   // 2. IMPORTAR POF
   // =========================
+  // Diseñado para ser idempotente: el Excel es la fuente de verdad. Al
+  // re-importar, se borran todas las asignaciones y revista_records de las
+  // plazas presentes en el Excel y se vuelven a crear desde cero. Esto nos
+  // deja respetar los casos en que una misma plaza aparece en varias filas
+  // (ej: titular con LIC. + suplente cubriendo), que con el flujo anterior
+  // se pisaban entre sí porque createByPlazaNumber tira error si ya hay
+  // una ACTIVA para la misma pareja agente+plaza.
   const pofWorkbook = XLSX.readFile(pofFile, { cellDates: true });
   const pofSheetName = pofWorkbook.SheetNames[0];
   const pofSheet = pofWorkbook.Sheets[pofSheetName];
@@ -374,10 +425,32 @@ async function bootstrap() {
     raw: false,
   });
 
+  // --- Agrupar filas por plaza_number. Una plaza puede tener N filas. ---
+  const rowsByPlaza = new Map<
+    string,
+    Array<{ row: PofRow; rowNumber: number }>
+  >();
+
+  for (let i = 0; i < pofRows.length; i += 1) {
+    const row = pofRows[i];
+    const rowNumber = i + 2; // +2 porque XLSX es 1-indexado y tiene header.
+    const plazaNumber = normalizeString(row.PLAZA);
+    if (!plazaNumber) continue;
+
+    if (!rowsByPlaza.has(plazaNumber)) rowsByPlaza.set(plazaNumber, []);
+    rowsByPlaza.get(plazaNumber)!.push({ row, rowNumber });
+  }
+
+  const plazaNumbers = Array.from(rowsByPlaza.keys());
+
+  console.log(
+    `📋 Plazas únicas en Excel: ${plazaNumbers.length} | Filas totales: ${pofRows.length}`,
+  );
+
   let createdPof = 0;
   let updatedPof = 0;
   let createdAssignments = 0;
-  let createdBajas = 0;
+  let finalizedAssignments = 0;
   let skippedAssignments = 0;
   let fallbackAgents = 0;
   let linkedByDni = 0;
@@ -385,29 +458,35 @@ async function bootstrap() {
   let linkedByInsensitiveName = 0;
   let linkedByNormalizedName = 0;
 
-  for (let i = 0; i < pofRows.length; i += 1) {
-    const row = pofRows[i];
-    const rowNumber = i + 2;
+  // --- PASO 1: upsert de PofPosition por plaza_number ---
+  // Usamos la fila con mayor prioridad de carácter (TITULAR > INTERINO >
+  // SUPLENTE > otros) como fuente de verdad para los campos a nivel plaza.
+  const pofIdByPlaza = new Map<string, number>();
 
-    const plazaNumber = normalizeString(row.PLAZA);
-    if (!plazaNumber) continue;
+  for (const plazaNumber of plazaNumbers) {
+    const group = rowsByPlaza.get(plazaNumber)!;
 
-    const startDate = toDateOnly(row['TOMA DE PO']);
-    const endDate = toDateOnly(row.HASTA);
+    const canonical = group
+      .slice()
+      .sort(
+        (a, b) =>
+          caracterPriority(a.row['SIT. REVISTA']) -
+          caracterPriority(b.row['SIT. REVISTA']),
+      )[0].row;
 
     const pofPayload: Partial<PofPosition> = {
       plaza_number: plazaNumber,
-      subject_name: normalizeString(row.ASIGNATURA),
-      hours_count: normalizeNumber(row.HS),
-      course: normalizeString(row.CURSO),
-      division: normalizeString(row['DIV.']),
-      shift: normalizeString(row.TURNO),
-      start_date: startDate as unknown as Date,
-      end_date: endDate as unknown as Date,
-      revista_status: normalizeString(row['SIT. REVISTA']),
-      legal_norm: normalizeString(row['NORM LEGAL']),
-      modality: normalizeString(row.MODALIDAD),
-      notes: normalizeString(row.OBSERVACIONES),
+      subject_name: normalizeString(canonical.ASIGNATURA),
+      hours_count: normalizeNumber(canonical.HS),
+      course: normalizeString(canonical.CURSO),
+      division: normalizeString(canonical['DIV.']),
+      shift: normalizeString(canonical.TURNO),
+      start_date: toDateOnly(canonical['TOMA DE PO']) as unknown as Date,
+      end_date: toDateOnly(canonical.HASTA) as unknown as Date,
+      revista_status: normalizeString(canonical['SIT. REVISTA']),
+      legal_norm: normalizeString(canonical['NORM LEGAL']),
+      modality: normalizeString(canonical.MODALIDAD),
+      notes: normalizeString(canonical.OBSERVACIONES),
       is_active: true,
     };
 
@@ -417,130 +496,161 @@ async function bootstrap() {
 
     if (existingPof) {
       await pofRepository.update(existingPof.id, pofPayload);
+      pofIdByPlaza.set(plazaNumber, existingPof.id);
       updatedPof += 1;
     } else {
       const created = pofRepository.create(pofPayload);
-      await pofRepository.save(created);
+      const saved = await pofRepository.save(created);
+      pofIdByPlaza.set(plazaNumber, saved.id);
       createdPof += 1;
     }
+  }
 
-    const dni = normalizeDni(row.DNI);
-    const docente = normalizeString(row['NOMBRE Y APELLIDO']);
+  // --- PASO 2: limpiar asignaciones y revista_records previos ---
+  // Los ids que tenemos son los que acabamos de upsertar. Si la plaza es
+  // vieja, la estamos reimportando igual: el Excel manda.
+  const affectedPofIds = Array.from(pofIdByPlaza.values());
 
-    if (!docente) {
-      skippedAssignments += 1;
-      diagnostics.push({
-        row_number: rowNumber,
-        plaza_number: plazaNumber,
-        dni,
-        docente,
-        start_date: startDate,
-        end_date: endDate,
-        metodo_busqueda: 'sin-nombre',
-        motivo: 'Fila sin NOMBRE Y APELLIDO',
-      });
-      continue;
-    }
+  if (affectedPofIds.length > 0) {
+    // Primero revista (tiene FKs a assignments); después assignments.
+    const deletedRevista = await revistaRepository.delete({
+      pof_position_id: In(affectedPofIds),
+    });
+    const deletedAssignments = await assignmentsRepository.delete({
+      pof_position_id: In(affectedPofIds),
+    });
 
-    let { agent, method } = await findAgentByIdentity(
-      agentsRepository,
-      dni,
-      docente,
+    console.log(
+      `🧹 Limpieza previa: ${deletedAssignments.affected ?? 0} asignaciones y ${
+        deletedRevista.affected ?? 0
+      } revista_records borrados.`,
     );
+  }
 
-    if (!agent && dni) {
-      const nameParts = splitFullName(docente);
+  // --- PASO 3: crear asignaciones (una por fila del Excel) ---
+  const today = new Date().toISOString().slice(0, 10);
 
-      const fallbackAgent = agentsRepository.create({
-        full_name: nameParts.full_name || docente,
-        first_name: nameParts.first_name,
-        last_name: nameParts.last_name,
-        dni,
-        is_active: true,
-      });
+  for (const plazaNumber of plazaNumbers) {
+    const group = rowsByPlaza.get(plazaNumber)!;
+    const pofPositionId = pofIdByPlaza.get(plazaNumber)!;
 
-      agent = await agentsRepository.save(fallbackAgent);
-      fallbackAgents += 1;
-      method = 'creado-desde-pof';
-    }
+    for (const { row, rowNumber } of group) {
+      const dni = normalizeDni(row.DNI);
+      const docente = normalizeString(row['NOMBRE Y APELLIDO']);
+      const startDate = toDateOnly(row['TOMA DE PO']);
+      const endDate = toDateOnly(row.HASTA);
+      const characterType = normalizeCharacterType(row['SIT. REVISTA']);
 
-    if (!agent) {
-      skippedAssignments += 1;
-      diagnostics.push({
-        row_number: rowNumber,
-        plaza_number: plazaNumber,
+      if (!docente) {
+        skippedAssignments += 1;
+        diagnostics.push({
+          row_number: rowNumber,
+          plaza_number: plazaNumber,
+          dni,
+          docente,
+          start_date: startDate,
+          end_date: endDate,
+          metodo_busqueda: 'sin-nombre',
+          motivo: 'Fila sin NOMBRE Y APELLIDO',
+        });
+        continue;
+      }
+
+      let { agent, method } = await findAgentByIdentity(
+        agentsRepository,
         dni,
         docente,
-        start_date: startDate,
-        end_date: endDate,
-        metodo_busqueda: method,
-        motivo: 'No se encontró agente por DNI ni por nombre',
-      });
+      );
 
-      if (diagnostics.length <= 10) {
-        console.log(
-          `⚠️ Fila ${rowNumber} | Plaza ${plazaNumber} | Docente ${docente} | No se encontró agente`,
-        );
-      }
-      continue;
-    }
-
-    if (method === 'dni') linkedByDni += 1;
-    if (method === 'nombre-exacto') linkedByExactName += 1;
-    if (method === 'nombre-ilike') linkedByInsensitiveName += 1;
-    if (method === 'nombre-normalizado') linkedByNormalizedName += 1;
-
-    try {
-      await assignmentsService.createByPlazaNumber({
-        agent_id: agent.id,
-        plaza_number: plazaNumber,
-        movement_type: 'DESIGNACION',
-        legal_norm_type: 'RESOLUCION_MINISTERIAL',
-        legal_norm_number: normalizeString(row['NORM LEGAL']),
-        assignment_date: startDate,
-        status: 'ACTIVA',
-        notes: normalizeString(row.OBSERVACIONES),
-      });
-
-      createdAssignments += 1;
-
-      if (endDate) {
-        await assignmentsService.createByPlazaNumber({
-          agent_id: agent.id,
-          plaza_number: plazaNumber,
-          movement_type: 'BAJA',
-          legal_norm_type: 'RESOLUCION_MINISTERIAL',
-          legal_norm_number: normalizeString(row['NORM LEGAL']),
-          assignment_date: endDate,
-          end_date: endDate,
-          status: 'FINALIZADA',
-          notes: 'Baja generada automáticamente desde importación inicial',
+      if (!agent && dni) {
+        const nameParts = splitFullName(docente);
+        const fallbackAgent = agentsRepository.create({
+          full_name: nameParts.full_name || docente,
+          first_name: nameParts.first_name,
+          last_name: nameParts.last_name,
+          dni,
+          is_active: true,
         });
 
-        createdBajas += 1;
+        agent = await agentsRepository.save(fallbackAgent);
+        fallbackAgents += 1;
+        method = 'creado-desde-pof';
       }
-    } catch (error) {
-      skippedAssignments += 1;
 
-      const motivo =
-        error instanceof Error ? error.message : 'error desconocido';
+      if (!agent) {
+        skippedAssignments += 1;
+        diagnostics.push({
+          row_number: rowNumber,
+          plaza_number: plazaNumber,
+          dni,
+          docente,
+          start_date: startDate,
+          end_date: endDate,
+          metodo_busqueda: method,
+          motivo: 'No se encontró agente por DNI ni por nombre',
+        });
 
-      diagnostics.push({
-        row_number: rowNumber,
-        plaza_number: plazaNumber,
-        dni,
-        docente,
-        start_date: startDate,
-        end_date: endDate,
-        metodo_busqueda: method,
-        agente_encontrado: agent.full_name,
-        motivo,
-      });
+        if (diagnostics.length <= 10) {
+          console.log(
+            `⚠️ Fila ${rowNumber} | Plaza ${plazaNumber} | Docente ${docente} | No se encontró agente`,
+          );
+        }
+        continue;
+      }
 
-      if (diagnostics.length <= 10) {
-        console.log(
-          `⚠️ Fila ${rowNumber} | Plaza ${plazaNumber} | Docente ${docente} | Método ${method} | ${motivo}`,
-        );
+      if (method === 'dni') linkedByDni += 1;
+      if (method === 'nombre-exacto') linkedByExactName += 1;
+      if (method === 'nombre-ilike') linkedByInsensitiveName += 1;
+      if (method === 'nombre-normalizado') linkedByNormalizedName += 1;
+
+      // Si HASTA ya pasó, la designación está FINALIZADA; si no, es ACTIVA.
+      const isFinalized = Boolean(endDate && endDate <= today);
+      const status = isFinalized ? 'FINALIZADA' : 'ACTIVA';
+      const legalNormNumber = normalizeString(row['NORM LEGAL']);
+      const observations = normalizeString(row.OBSERVACIONES);
+
+      const assignmentPayload: DeepPartial<AgentAssignment> = {
+        agent_id: agent.id,
+        pof_position_id: pofPositionId,
+        movement_type: 'DESIGNACION',
+        resolution_number: legalNormNumber ?? undefined,
+        legal_norm: legalNormNumber ?? undefined,
+        legal_norm_type: 'RESOLUCION_MINISTERIAL',
+        legal_norm_number: legalNormNumber ?? undefined,
+        character_type: characterType ?? null,
+        assignment_date: startDate ? (startDate as unknown as Date) : undefined,
+        end_date: endDate ? (endDate as unknown as Date) : undefined,
+        status,
+        notes: observations ?? undefined,
+      };
+
+      try {
+        const assignment = assignmentsRepository.create(assignmentPayload);
+        await assignmentsRepository.save(assignment);
+        createdAssignments += 1;
+        if (isFinalized) finalizedAssignments += 1;
+      } catch (error) {
+        skippedAssignments += 1;
+        const motivo =
+          error instanceof Error ? error.message : 'error desconocido';
+
+        diagnostics.push({
+          row_number: rowNumber,
+          plaza_number: plazaNumber,
+          dni,
+          docente,
+          start_date: startDate,
+          end_date: endDate,
+          metodo_busqueda: method,
+          agente_encontrado: agent.full_name,
+          motivo,
+        });
+
+        if (diagnostics.length <= 10) {
+          console.log(
+            `⚠️ Fila ${rowNumber} | Plaza ${plazaNumber} | Docente ${docente} | Método ${method} | ${motivo}`,
+          );
+        }
       }
     }
   }
@@ -553,14 +663,14 @@ async function bootstrap() {
 
   console.log(`✅ POF creadas: ${createdPof}`);
   console.log(`♻️ POF actualizadas: ${updatedPof}`);
-  console.log(`✅ Designaciones creadas: ${createdAssignments}`);
-  console.log(`✅ Bajas creadas: ${createdBajas}`);
+  console.log(
+    `✅ Asignaciones creadas: ${createdAssignments} (de las cuales ${finalizedAssignments} ya venían FINALIZADAS)`,
+  );
   console.log(`🆕 Agentes mínimos creados desde POF: ${fallbackAgents}`);
   console.log(`🔎 Vinculadas por DNI: ${linkedByDni}`);
   console.log(`🔎 Vinculadas por nombre exacto: ${linkedByExactName}`);
   console.log(`🔎 Vinculadas por nombre ILIKE: ${linkedByInsensitiveName}`);
-  console.log(`🔎 Vinculadas por nombre normalizado: 
-    ${linkedByNormalizedName}`);
+  console.log(`🔎 Vinculadas por nombre normalizado: ${linkedByNormalizedName}`);
   console.log(`⚠️ Asignaciones omitidas: ${skippedAssignments}`);
   console.log(`📝 Diagnóstico guardado en: ${diagnosticsFile}`);
   console.log('🎉 Importación finalizada.');
