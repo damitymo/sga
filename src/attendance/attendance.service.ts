@@ -11,6 +11,8 @@ import {
   AttendanceShift,
   AttendanceStatus,
 } from './entities/attendance-record.entity';
+import { AgentAssignment } from '../assignments/entities/agent-assignment.entity';
+import { classifyDay, getWeekday } from './calendar-utils';
 
 type FindAttendanceFilters = {
   agentId?: number;
@@ -75,7 +77,55 @@ export class AttendanceService {
   constructor(
     @InjectRepository(AttendanceRecord)
     private readonly attendanceRepository: Repository<AttendanceRecord>,
+
+    @InjectRepository(AgentAssignment)
+    private readonly assignmentsRepository: Repository<AgentAssignment>,
   ) {}
+
+  /**
+   * A partir de las asignaciones activas del agente, calcula cuántas horas
+   * semanales dicta en cada día de la semana.
+   *
+   * Devuelve un array indexado 0..6 (0=Dom ... 6=Sáb). Los índices 0 y 6
+   * siempre quedan en 0 porque el Horario de Clase en la planilla MEC es
+   * LUN-VIE (mapeamos fila 0 del editor → weekday 1 = Lunes).
+   *
+   * Si ningún horario está cargado se devuelve null → el grid cae al
+   * comportamiento anterior (cualquier día hábil cuenta como Deb.Dic.).
+   */
+  private async getWeeklyHoursByAgent(
+    agentId: number,
+  ): Promise<number[] | null> {
+    const actives = await this.assignmentsRepository.find({
+      where: { agent_id: agentId, status: 'ACTIVA' },
+    });
+
+    const anyWithSchedule = actives.some(
+      (a) => a.weekly_schedule && Array.isArray(a.weekly_schedule),
+    );
+
+    if (!anyWithSchedule) return null;
+
+    const hoursByWeekday: number[] = [0, 0, 0, 0, 0, 0, 0];
+
+    for (const a of actives) {
+      const m = a.weekly_schedule;
+      if (!Array.isArray(m) || m.length !== 5) continue;
+
+      for (let dayRow = 0; dayRow < 5; dayRow += 1) {
+        const row = m[dayRow];
+        if (!Array.isArray(row)) continue;
+
+        // dayRow 0=LUN → weekday 1. dayRow 4=VIE → weekday 5.
+        const wd = dayRow + 1;
+        for (const v of row) {
+          if (v) hoursByWeekday[wd] += 1;
+        }
+      }
+    }
+
+    return hoursByWeekday;
+  }
 
   private normalizeStatus(value?: string | null): AttendanceStatus {
     const normalized = (value || '').trim().toUpperCase();
@@ -306,23 +356,24 @@ export class AttendanceService {
 
   /**
    * Devuelve la asistencia anual de un agente en formato grilla del libro
-   * oficial del MEC. Solo lee datos: agrupa los AttendanceRecord del año
-   * por mes/día y arma los totales mensuales y anuales.
+   * oficial del MEC. Combina tres fuentes:
    *
-   * Los códigos que cuentan en cada columna vienen del Excel de origen:
-   *  - DICTO  = días con raw_code entre P, F (feriado), AJ (cuenta como
-   *             dictado con justificación), AI (cuenta como dictado pero
-   *             ausente), L1 y L2 (días con licencia también cuentan
-   *             como días hábiles del mes).
-   *  - AI     = raw_code === 'AI'
-   *  - AJ     = raw_code === 'AJ'
-   *  - Lic. 1 = raw_code === 'L1'
-   *  - Lic. 2 = raw_code === 'L2'
-   *  - Deb. Dic. = suma de días hábiles (cuando faltan marcas)
-   *  - % Asist = (DICTO − AI) / DICTO × 100
+   *  1. Registros de asistencia reales (AttendanceRecord) cargados a mano o
+   *     importados desde Excel. Cada registro aporta un raw_code al día.
+   *  2. Calendario oficial: finde (S/D), feriados nacionales (F) y recesos
+   *     escolares se derivan de {@link classifyDay}.
+   *  3. Horario semanal del docente (weekly_schedule de sus asignaciones
+   *     activas). Si está cargado, sólo los días de la semana en los que el
+   *     docente dicta cuentan como "Deb. Dic.".
    *
-   * Si el dataset del año está vacío, la grilla se devuelve igual con los
-   * 12 meses en 0 — así el frontend siempre puede pintar la tabla.
+   * Columnas de totales por mes:
+   *  - DICTO    = días con código P (presente)
+   *  - A.I.     = días con código AI
+   *  - A.J.     = días con código AJ
+   *  - Lic.1    = días con código L1
+   *  - Lic.2    = días con código L2
+   *  - Deb.Dic. = días que el docente debió dictar (horario + calendario)
+   *  - % Asist. = (Deb.Dic. − A.I. − L1) / Deb.Dic. × 100
    */
   async getAnnualGrid(agentId: number, year: number): Promise<AttendanceGrid> {
     const records = await this.attendanceRepository.find({
@@ -330,9 +381,9 @@ export class AttendanceService {
       order: { month: 'ASC', day: 'ASC', id: 'ASC' },
     });
 
+    const hoursByWeekday = await this.getWeeklyHoursByAgent(agentId);
+
     // Índice mes -> día -> record más reciente.
-    // Si un mismo día aparece en varias hojas fuente (source_sheet_name
-    // distinto), el más reciente (por id) gana para la grilla.
     const byMonthDay = new Map<string, AttendanceRecord>();
     for (const r of records) {
       byMonthDay.set(`${r.month}-${r.day}`, r);
@@ -356,14 +407,13 @@ export class AttendanceService {
       let lic2 = 0;
       let debDic = 0;
 
-      const lastDay = new Date(year, m, 0).getDate(); // 28..31 real del mes
+      const lastDay = new Date(year, m, 0).getDate();
 
       for (let d = 1; d <= 31; d += 1) {
         const record = byMonthDay.get(`${m}-${d}`);
         const code = record?.raw_code?.toUpperCase() ?? null;
 
         if (d > lastDay) {
-          // Día inexistente en el mes (ej: 30 feb). Fila en blanco.
           days.push({
             day: d,
             raw_code: null,
@@ -380,25 +430,44 @@ export class AttendanceService {
           observation: record?.observation ?? null,
         });
 
-        // S (sábado) y D (domingo) son no-hábiles en el libro: no suman
-        // dicto ni débito. El resto de códigos sí es día "cargado".
-        if (code === 'S' || code === 'D') continue;
+        const kind = classifyDay(year, m, d);
 
-        if (!code) {
-          // Día hábil sin marca: va a "Deb. Dic." (débito a dictar).
-          debDic += 1;
+        // Días no-lectivos: no suman dicto/debDic
+        if (
+          kind === 'saturday' ||
+          kind === 'sunday' ||
+          kind === 'holiday' ||
+          kind === 'break'
+        ) {
           continue;
         }
 
-        dicto += 1;
-        if (code === 'AI') ai += 1;
-        if (code === 'AJ') aj += 1;
-        if (code === 'L1') lic1 += 1;
-        if (code === 'L2') lic2 += 1;
+        // Día hábil: decidir si el docente debía dictar.
+        // Si hay horario cargado, solo cuenta si tiene al menos una hora ese
+        // día de la semana. Si no hay horario, se asume que todos los días
+        // hábiles cuentan (compatibilidad hacia atrás).
+        const wd = getWeekday(year, m, d);
+        const mustTeach = hoursByWeekday
+          ? hoursByWeekday[wd] > 0
+          : true;
+
+        if (!mustTeach) continue;
+
+        debDic += 1;
+
+        if (!code) continue;
+
+        if (code === 'P') dicto += 1;
+        else if (code === 'AI') ai += 1;
+        else if (code === 'AJ') aj += 1;
+        else if (code === 'L1') lic1 += 1;
+        else if (code === 'L2') lic2 += 1;
       }
 
       const pctAsist =
-        dicto > 0 ? Number((((dicto - ai) / dicto) * 100).toFixed(2)) : 0;
+        debDic > 0
+          ? Number((((debDic - ai - lic1) / debDic) * 100).toFixed(2))
+          : 0;
 
       months.push({
         month: m,
@@ -423,7 +492,9 @@ export class AttendanceService {
     }
 
     const yPct =
-      yDicto > 0 ? Number((((yDicto - yAi) / yDicto) * 100).toFixed(2)) : 0;
+      yDebDic > 0
+        ? Number((((yDebDic - yAi - yL1) / yDebDic) * 100).toFixed(2))
+        : 0;
 
     return {
       agent_id: agentId,

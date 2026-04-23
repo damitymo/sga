@@ -258,4 +258,68 @@ export class AssignmentsService {
   remove(id: number) {
     return this.assignmentsRepository.delete(id);
   }
+
+  /**
+   * Devuelve el horario semanal de una asignación. Si nunca se cargó,
+   * devuelve una matriz 5x7 vacía (todo false) para que el frontend arranque
+   * desde estado limpio.
+   */
+  async getSchedule(id: number): Promise<{ weekly_schedule: boolean[][] }> {
+    const assignment = await this.assignmentsRepository.findOne({
+      where: { id },
+    });
+
+    if (!assignment) {
+      throw new NotFoundException('No existe la asignación');
+    }
+
+    const matrix =
+      assignment.weekly_schedule ?? AssignmentsService.emptyScheduleMatrix();
+
+    return { weekly_schedule: matrix };
+  }
+
+  /**
+   * Guarda la matriz 5x7 de booleanos del Horario de Clase para una
+   * asignación. Valida la forma antes de escribir para evitar JSON basura.
+   */
+  async setSchedule(
+    id: number,
+    weeklySchedule: boolean[][],
+  ): Promise<{ weekly_schedule: boolean[][] }> {
+    if (!Array.isArray(weeklySchedule) || weeklySchedule.length !== 5) {
+      throw new BadRequestException(
+        'El horario semanal debe tener exactamente 5 filas (LUN-VIE).',
+      );
+    }
+
+    const normalized: boolean[][] = weeklySchedule.map((row, i) => {
+      if (!Array.isArray(row) || row.length !== 7) {
+        throw new BadRequestException(
+          `La fila ${i + 1} debe tener exactamente 7 columnas (1ª-7ª hora).`,
+        );
+      }
+      return row.map((v) => Boolean(v));
+    });
+
+    const assignment = await this.assignmentsRepository.findOne({
+      where: { id },
+    });
+
+    if (!assignment) {
+      throw new NotFoundException('No existe la asignación');
+    }
+
+    await this.assignmentsRepository.update(id, {
+      weekly_schedule: normalized,
+    });
+
+    return { weekly_schedule: normalized };
+  }
+
+  static emptyScheduleMatrix(): boolean[][] {
+    return Array.from({ length: 5 }, () =>
+      Array.from({ length: 7 }, () => false),
+    );
+  }
 }

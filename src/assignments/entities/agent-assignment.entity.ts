@@ -62,6 +62,14 @@ export class AgentAssignment {
   @Column({ type: 'text', nullable: true })
   notes!: string | null;
 
+  /**
+   * Horario semanal de dictado: matriz 5x7 (LUN-VIE × 1ª-7ª hora) de booleanos.
+   * Persistido como jsonb para que sea fácil de levantar/escribir desde el
+   * ClassScheduleEditor. Null = todavía no se cargó el horario para esta plaza.
+   */
+  @Column({ type: 'jsonb', nullable: true })
+  weekly_schedule!: boolean[][] | null;
+
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   created_at!: Date;
 

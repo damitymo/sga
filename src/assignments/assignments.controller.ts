@@ -4,8 +4,10 @@ import {
   Delete,
   Get,
   Param,
+  ParseIntPipe,
   Patch,
   Post,
+  Put,
   UseGuards,
 } from '@nestjs/common';
 import { AssignmentsService } from './assignments.service';
@@ -53,5 +55,24 @@ export class AssignmentsController {
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.assignmentsService.remove(Number(id));
+  }
+
+  /**
+   * Devuelve el Horario de Clase (matriz 5x7) de la asignación.
+   * Accesible a cualquier usuario autenticado — el front ya valida que solo
+   * ADMIN/ADMINISTRATIVO puedan modificarlo.
+   */
+  @Get(':id/schedule')
+  getSchedule(@Param('id', ParseIntPipe) id: number) {
+    return this.assignmentsService.getSchedule(id);
+  }
+
+  @Roles('ADMINISTRATIVO', 'ADMIN')
+  @Put(':id/schedule')
+  putSchedule(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { weekly_schedule: boolean[][] },
+  ) {
+    return this.assignmentsService.setSchedule(id, body.weekly_schedule);
   }
 }
