@@ -224,6 +224,28 @@ function isDuplicateActiveError(error: unknown): boolean {
   );
 }
 
+function isPlazaNotFoundError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return /No existe la plaza|está inactiva/i.test(error.message);
+}
+
+function isAgentNotFoundError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return /No existe el agente|agente o está inactivo/i.test(error.message);
+}
+
+function isNoActiveDesignationError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return error.message.includes(
+    'No existe una designación activa para esa plaza',
+  );
+}
+
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return String(error);
+}
+
 async function bootstrap() {
   const app = await NestFactory.createApplicationContext(AppModule);
 
@@ -263,9 +285,14 @@ async function bootstrap() {
   let createdBajas = 0;
   let skipped = 0;
   let duplicatesSkipped = 0;
+  let plazaNotFound = 0;
+  let agentNotFound = 0;
+  let otherErrors = 0;
 
   const processedDesignaciones = new Set<string>();
   const processedBajas = new Set<string>();
+  const missingPlazas = new Set<string>();
+  const errorLog: string[] = [];
 
   for (let i = 0; i < rows.length; i += 1) {
     const row = rows[i];
@@ -331,8 +358,20 @@ async function bootstrap() {
         if (isDuplicateActiveError(error)) {
           duplicatesSkipped += 1;
           processedDesignaciones.add(designacionKey);
+        } else if (isPlazaNotFoundError(error)) {
+          plazaNotFound += 1;
+          missingPlazas.add(plaza);
+          processedDesignaciones.add(designacionKey);
+          // no rompemos, seguimos con la próxima fila
+        } else if (isAgentNotFoundError(error)) {
+          agentNotFound += 1;
+          processedDesignaciones.add(designacionKey);
         } else {
-          throw error;
+          otherErrors += 1;
+          errorLog.push(
+            `[${i + 1}] ${plaza} · ${docente} (DNI ${dni ?? '-'}) → ${errorMessage(error)}`,
+          );
+          processedDesignaciones.add(designacionKey);
         }
       }
     } else {
@@ -360,8 +399,24 @@ async function bootstrap() {
           if (isDuplicateActiveError(error)) {
             duplicatesSkipped += 1;
             processedBajas.add(bajaKey);
+          } else if (isPlazaNotFoundError(error)) {
+            plazaNotFound += 1;
+            missingPlazas.add(plaza);
+            processedBajas.add(bajaKey);
+          } else if (isAgentNotFoundError(error)) {
+            agentNotFound += 1;
+            processedBajas.add(bajaKey);
+          } else if (isNoActiveDesignationError(error)) {
+            // No tenemos designación activa para dar de baja
+            // (ej. fila histórica sin la designación correspondiente).
+            duplicatesSkipped += 1;
+            processedBajas.add(bajaKey);
           } else {
-            throw error;
+            otherErrors += 1;
+            errorLog.push(
+              `[${i + 1}] BAJA ${plaza} · ${docente} → ${errorMessage(error)}`,
+            );
+            processedBajas.add(bajaKey);
           }
         }
       } else {
@@ -376,10 +431,33 @@ async function bootstrap() {
 
   console.log('\n✅ FIN');
   console.log(`Agentes creados automáticamente: ${createdAgents}`);
-  console.log(`Designaciones creadas: ${createdDesignaciones}`);
-  console.log(`Bajas creadas: ${createdBajas}`);
-  console.log(`Duplicados salteados: ${duplicatesSkipped}`);
-  console.log(`Filas salteadas: ${skipped}`);
+  console.log(`Designaciones creadas:           ${createdDesignaciones}`);
+  console.log(`Bajas creadas:                   ${createdBajas}`);
+  console.log(`Duplicados salteados:            ${duplicatesSkipped}`);
+  console.log(`Filas salteadas (sin datos):     ${skipped}`);
+  console.log(`Plaza no existe en POF:          ${plazaNotFound}`);
+  console.log(`Agente inactivo:                 ${agentNotFound}`);
+  console.log(`Otros errores:                   ${otherErrors}`);
+
+  if (missingPlazas.size > 0) {
+    console.log(
+      `\n⚠️  Plazas que no existen en pof_positions (${missingPlazas.size}):`,
+    );
+    for (const p of Array.from(missingPlazas).sort()) {
+      console.log(`  · ${p}`);
+    }
+    console.log(
+      'Recordá importar primero la POF (npm run import:mec) para que estas plazas existan.',
+    );
+  }
+
+  if (errorLog.length > 0) {
+    console.log(`\n❌ Otros errores (${errorLog.length}):`);
+    for (const line of errorLog.slice(0, 30)) console.log(`  · ${line}`);
+    if (errorLog.length > 30) {
+      console.log(`  ... y ${errorLog.length - 30} más`);
+    }
+  }
 
   await app.close();
 }
