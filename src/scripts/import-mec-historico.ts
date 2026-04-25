@@ -252,7 +252,11 @@ async function main() {
       const ingreso = parseDdMmYyyy(pr.prestacionFechaDesdeFormateada);
       const egreso = parseDdMmYyyy(pr.prestacionFechaHastaFormateada);
 
-      const status: 'ACTIVA' | 'FINALIZADA' = egreso ? 'FINALIZADA' : 'ACTIVA';
+      // El JSON del MEC marca "estaActiva" como fuente de verdad: hay
+      // prestaciones con fecha de cese futura (proyectada) que siguen
+      // ACTIVAS hoy. No alcanza con "tiene fecha hasta" → FINALIZADA.
+      const status: 'ACTIVA' | 'FINALIZADA' =
+        pr.estaActiva === false ? 'FINALIZADA' : 'ACTIVA';
 
       const notesParts = [
         pr.cargo ? `Cargo: ${pr.cargo}` : null,
