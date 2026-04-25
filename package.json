@@ -22,6 +22,8 @@
     "reconcile:revista": "ts-node -r tsconfig-paths/register src/scripts/reconcile-revista-from-assignments.ts",
     "import:initial": "ts-node -r tsconfig-paths/register src/scripts/import-initial-data.ts",
     "import:mec": "ts-node -r tsconfig-paths/register src/scripts/import-mec-pof.ts",
+    "import:agents-data": "ts-node -r tsconfig-paths/register src/scripts/import-agents-data.ts",
+    "import:revista-pof": "ts-node -r tsconfig-paths/register src/scripts/import-revista-from-pof.ts",
     "import:attendance2025": "ts-node -r tsconfig-paths/register src/scripts/import-attendance-2025.ts",
     "typeorm": "typeorm-ts-node-commonjs",
     "migration:create": "typeorm-ts-node-commonjs migration:create",
