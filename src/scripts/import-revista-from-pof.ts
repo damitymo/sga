@@ -48,6 +48,16 @@ function toDateOnly(value: unknown): string | undefined {
     return value.toISOString().slice(0, 10);
   }
 
+  // Excel date como número (días desde 1900)
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const parsed = XLSX.SSF.parse_date_code(value);
+    if (parsed && parsed.y && parsed.m && parsed.d) {
+      return `${parsed.y}-${String(parsed.m).padStart(2, '0')}-${String(
+        parsed.d,
+      ).padStart(2, '0')}`;
+    }
+  }
+
   const text = normalizeString(value);
   if (!text) return undefined;
 
@@ -226,9 +236,13 @@ async function bootstrap() {
     throw new Error('Archivo no encontrado');
   }
 
-  const workbook = XLSX.readFile(filePath);
+  // cellDates: true → fechas vienen como Date en vez de número de Excel
+  const workbook = XLSX.readFile(filePath, { cellDates: true });
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json<PofRow>(sheet, { defval: '' });
+  const rows = XLSX.utils.sheet_to_json<PofRow>(sheet, {
+    defval: '',
+    raw: false, // cuando no hay tipo, devuelve strings ya formateados
+  });
 
   console.log(`📄 Archivo: ${filePath}`);
   console.log(`📚 Hoja: ${workbook.SheetNames[0]}`);
