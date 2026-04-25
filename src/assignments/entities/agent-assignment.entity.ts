@@ -17,8 +17,12 @@ export class AgentAssignment {
   @Column({ type: 'int' })
   agent_id!: number;
 
-  @Column({ type: 'int' })
-  pof_position_id!: number;
+  // Nullable: el endpoint /api/Designacion del MEC trae formularios FD
+  // (designaciones legales) sin la plaza específica vinculada. Para no
+  // perder el historial del docente, permitimos guardar la designación
+  // sin pof_position_id y se enriquece después si conseguimos la plaza.
+  @Column({ type: 'int', nullable: true })
+  pof_position_id!: number | null;
 
   // eager: true intencional. Los listados de designaciones prácticamente
   // siempre muestran docente + plaza en la misma tabla (frontend los consume
@@ -28,9 +32,9 @@ export class AgentAssignment {
   @JoinColumn({ name: 'agent_id' })
   agent!: Agent;
 
-  @ManyToOne(() => PofPosition, { eager: true, onDelete: 'CASCADE' })
+  @ManyToOne(() => PofPosition, { eager: true, onDelete: 'CASCADE', nullable: true })
   @JoinColumn({ name: 'pof_position_id' })
-  pof_position!: PofPosition;
+  pof_position!: PofPosition | null;
 
   @Column({ type: 'varchar' })
   movement_type!: string;

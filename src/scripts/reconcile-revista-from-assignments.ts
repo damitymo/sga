@@ -72,6 +72,12 @@ async function bootstrap() {
       const agentId = ordered[0].agent_id;
       const pofPositionId = ordered[0].pof_position_id;
 
+      // Skip designaciones sin plaza vinculada (FDs del MEC). No tiene
+      // sentido reconciliar revista_records sin pof_position.
+      if (pofPositionId === null || pofPositionId === undefined) {
+        continue;
+      }
+
       const pofPosition = await pofRepository.findOne({
         where: { id: pofPositionId },
       });
