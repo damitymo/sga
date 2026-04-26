@@ -333,6 +333,7 @@ export class AgentsService {
       pof_position: a.pof_position
         ? {
             plaza_number: a.pof_position.plaza_number,
+            establecimiento_cue: a.pof_position.establecimiento_cue,
             subject_name: a.pof_position.subject_name,
             modality: a.pof_position.modality,
             hours_count: a.pof_position.hours_count,
