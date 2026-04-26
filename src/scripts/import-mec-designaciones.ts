@@ -79,6 +79,7 @@ function digitsOnly(s: string | null | undefined): string {
 async function main() {
   const args = process.argv.slice(2);
   const commit = args.includes('--commit');
+  const createMissingAgents = args.includes('--create-missing-agents');
   const fileArg = args.find((a) => !a.startsWith('--'));
   const filePath = fileArg
     ? path.isAbsolute(fileArg)
@@ -95,6 +96,11 @@ async function main() {
   console.log(
     `⚙️  Modo: ${commit ? '🔴 COMMIT (escribe en DB)' : '🟢 DRY-RUN'}`,
   );
+  if (createMissingAgents) {
+    console.log(
+      `🆕 --create-missing-agents: crea Agent placeholder si el DNI no existe`,
+    );
+  }
 
   const json = JSON.parse(fs.readFileSync(filePath, 'utf8')) as MecResponse;
   const fds = json.aaData ?? [];
@@ -169,6 +175,7 @@ async function main() {
   let skippedNoAgent = 0;
   let skippedNoDni = 0;
   let skippedNoToma = 0;
+  let agentsCreated = 0;
   const sample: string[] = [];
   const existingByKey = new Set<string>();
 
@@ -181,10 +188,32 @@ async function main() {
       continue;
     }
 
-    const agent = byDni.get(dni);
+    let agent = byDni.get(dni);
     if (!agent) {
-      skippedNoAgent++;
-      continue;
+      if (!createMissingAgents) {
+        skippedNoAgent++;
+        continue;
+      }
+      // Crear Agent placeholder con datos del FD
+      const apellido = (fd.ingresoPersonaApellido || '').trim();
+      const nombre = (fd.ingresoPersonaNombre || '').trim();
+      const fullName = apellido && nombre ? `${apellido}, ${nombre}` : apellido || dni;
+      const created = agentsRepo.create({
+        full_name: fullName,
+        last_name: apellido || null,
+        first_name: nombre || null,
+        dni,
+        is_active: true,
+        notes:
+          'Agente creado por import-mec-designaciones (no estaba en agents). Verificar datos.',
+      });
+      if (commit) {
+        agent = await agentsRepo.save(created);
+      } else {
+        agent = { ...created, id: -1 } as Agent;
+      }
+      byDni.set(dni, agent);
+      agentsCreated++;
     }
 
     const tomaIso = parseDdMmYyyy(fd.tomaPosesionFecha);
@@ -260,6 +289,7 @@ async function main() {
   console.log(`   Saltados por NLD ya en POF actual:  ${skippedNldMatch}`);
   console.log(`   Saltados duplicados (dentro JSON):  ${skippedDuplicate}`);
   console.log(`   Sin agente en DB:                   ${skippedNoAgent}`);
+  console.log(`   Agentes creados (placeholder):      ${agentsCreated}`);
   console.log(`   Sin DNI:                            ${skippedNoDni}`);
   console.log(`   Sin toma de posesión:               ${skippedNoToma}`);
 

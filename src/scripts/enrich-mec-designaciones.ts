@@ -160,6 +160,7 @@ function parseDdMmYyyy(s: string | null): string | null {
 async function main() {
   const args = process.argv.slice(2);
   const commit = args.includes('--commit');
+  const createMissingPlazas = args.includes('--create-missing-plazas');
   const fileArg = args.find((a) => !a.startsWith('--'));
   const filePath = fileArg
     ? path.isAbsolute(fileArg)
@@ -176,6 +177,11 @@ async function main() {
   console.log(
     `⚙️  Modo: ${commit ? '🔴 COMMIT (escribe en DB)' : '🟢 DRY-RUN'}`,
   );
+  if (createMissingPlazas) {
+    console.log(
+      `🆕 --create-missing-plazas: crea PofPosition stub si la plaza no existe`,
+    );
+  }
 
   const json = JSON.parse(fs.readFileSync(filePath, 'utf8')) as InputJson;
   const fds = json.fds ?? [];
@@ -245,12 +251,35 @@ async function main() {
     // Tomamos la primera plaza (en general es 1 sola por FD)
     const firstPlaza = plazasParsed[0];
     const plazaNumber = firstPlaza.plaza.trim();
-    const pof = pofByNumber.get(plazaNumber);
+    let pof = pofByNumber.get(plazaNumber);
 
     if (!pof) {
-      plazaNotInPof++;
-      missingPlazas.add(plazaNumber);
-      continue;
+      if (!createMissingPlazas) {
+        plazaNotInPof++;
+        missingPlazas.add(plazaNumber);
+        continue;
+      }
+      // Crear stub de PofPosition con datos del FD
+      const stub = pofRepo.create({
+        plaza_number: plazaNumber,
+        subject_name: firstPlaza.asignatura || null,
+        modality: firstPlaza.asignatura || null,
+        course: firstPlaza.anio || null,
+        division: firstPlaza.division || null,
+        shift: firstPlaza.turno || null,
+        hours_count: firstPlaza.horas
+          ? Number(firstPlaza.horas) || null
+          : null,
+        is_active: false, // las que no están en POF actual son desafectadas
+        notes: 'Plaza creada por enrich-mec-designaciones (no estaba en POF actual). Verificar.',
+      });
+      if (commit) {
+        pof = await pofRepo.save(stub);
+      } else {
+        pof = { ...stub, id: -1 } as PofPosition;
+      }
+      pofByNumber.set(plazaNumber, pof);
+      missingPlazas.add(plazaNumber); // tracking igual
     }
 
     // Construir el update

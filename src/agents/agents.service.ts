@@ -334,6 +334,7 @@ export class AgentsService {
         ? {
             plaza_number: a.pof_position.plaza_number,
             subject_name: a.pof_position.subject_name,
+            modality: a.pof_position.modality,
             hours_count: a.pof_position.hours_count,
             course: a.pof_position.course,
             division: a.pof_position.division,
