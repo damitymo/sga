@@ -115,30 +115,62 @@ async function main() {
   }
   console.log(`👥 Agentes en DB: ${allAgents.length}`);
 
-  // Pre-cargar todas las assignments existentes con FD asociado para
-  // detectar duplicados (idempotencia por agent_id + resolution_number).
-  // El FD lo guardamos en `resolution_number` con formato "FD-XXXXX/YY".
-  const existingAssignments = await assignRepo.find({
-    where: { resolution_number: Not(IsNull()) },
-    select: ['id', 'agent_id', 'resolution_number', 'pof_position_id'],
+  // 1) Borrar todos los FDs importados previamente para que el script sea
+  // idempotente. Los identificamos por: pof_position_id IS NULL AND
+  // resolution_number LIKE 'FD-%' AND notes LIKE '%formularioDesignacionId%'.
+  if (commit) {
+    const deleted = await assignRepo
+      .createQueryBuilder()
+      .delete()
+      .where('pof_position_id IS NULL')
+      .andWhere("resolution_number LIKE 'FD-%'")
+      .andWhere("notes LIKE '%formularioDesignacionId%'")
+      .execute();
+    console.log(
+      `🧹 FDs previos borrados: ${deleted.affected ?? 0} (idempotencia)`,
+    );
+  }
+
+  // 2) Pre-cargar las assignments con plaza vinculada (no FD) para detectar
+  // duplicados por norma legal: si un FD tiene la misma NLD que una
+  // prestación con plaza, esa designación ya está representada — el FD
+  // no se crea (sería un duplicado de la misma resolución).
+  // Normalizamos: "ME-R-07621/19" y "07621/19" deben matchear.
+  const assignmentsConPlaza = await assignRepo.find({
+    where: { pof_position_id: Not(IsNull()) },
+    select: ['id', 'agent_id', 'legal_norm', 'resolution_number'],
   });
-  const existingByKey = new Set<string>();
-  for (const ex of existingAssignments) {
-    if (ex.resolution_number?.startsWith('FD-')) {
-      existingByKey.add(`${ex.agent_id}|${ex.resolution_number}`);
-    }
+
+  function normalizeNld(s: string | null | undefined): string {
+    if (!s) return '';
+    // Sacamos prefijos tipo "ME-R-", "R. M.", "DNS-D-", etc., y nos quedamos
+    // con la última secuencia "NUMERO/AA" para comparar.
+    const m = String(s).match(/(\d+)\s*\/\s*(\d{2,4})/);
+    if (!m) return s.trim().toUpperCase();
+    const num = String(parseInt(m[1], 10)); // saca ceros a la izquierda
+    return `${num}/${m[2]}`;
+  }
+
+  const nldByAgent = new Map<number, Set<string>>();
+  for (const a of assignmentsConPlaza) {
+    const nld = normalizeNld(a.legal_norm) || normalizeNld(a.resolution_number);
+    if (!nld) continue;
+    if (!nldByAgent.has(a.agent_id)) nldByAgent.set(a.agent_id, new Set());
+    nldByAgent.get(a.agent_id)!.add(nld);
   }
   console.log(
-    `🔎 FDs ya importados previamente: ${existingByKey.size}`,
+    `🔎 NLDs ya cubiertas por prestaciones con plaza: ${assignmentsConPlaza.length}`,
   );
 
   let processed = 0;
   let created = 0;
   let skippedDuplicate = 0;
+  let skippedNldMatch = 0;
   let skippedNoAgent = 0;
   let skippedNoDni = 0;
   let skippedNoToma = 0;
   const sample: string[] = [];
+  const existingByKey = new Set<string>();
 
   for (const fd of fds) {
     processed++;
@@ -168,11 +200,21 @@ async function main() {
       continue;
     }
 
-    // Status: si fd está "Anulado" → FINALIZADA; sino ACTIVA
-    const estado = (fd.estado || '').trim();
-    const isAnulado = /anulad/i.test(estado);
+    // Si la NLD del FD ya está cubierta por una assignment con plaza,
+    // omitir: es la misma designación, ya representada con datos completos.
+    const nldNorm = normalizeNld(fd.normaLegalDesignacion);
+    if (nldNorm && nldByAgent.get(agent.id)?.has(nldNorm)) {
+      skippedNldMatch++;
+      continue;
+    }
 
-    const status: 'ACTIVA' | 'FINALIZADA' = isAnulado ? 'FINALIZADA' : 'ACTIVA';
+    // Status: estos FDs son siempre históricos (designaciones legales viejas).
+    // El endpoint del MEC no nos dice si la persona sigue activa en esa
+    // designación — para eso ya tenemos las prestaciones del endpoint /api/plaza,
+    // que se filtran arriba con nldByAgent. Todo lo que llegue acá no tiene
+    // contraparte en la POF actual → es histórico cerrado → FINALIZADA.
+    const estado = (fd.estado || '').trim();
+    const status: 'ACTIVA' | 'FINALIZADA' = 'FINALIZADA';
 
     const noteParts = [
       fd.numero ? `FD nro: ${fd.numero}` : null,
@@ -213,12 +255,13 @@ async function main() {
   await app.close();
 
   console.log('\n📈 Resultado:');
-  console.log(`   FDs procesados:          ${processed}`);
-  console.log(`   Assignments creadas:     ${created}`);
-  console.log(`   Duplicados saltados:     ${skippedDuplicate}`);
-  console.log(`   Sin agente en DB:        ${skippedNoAgent}`);
-  console.log(`   Sin DNI:                 ${skippedNoDni}`);
-  console.log(`   Sin toma de posesión:    ${skippedNoToma}`);
+  console.log(`   FDs procesados:                     ${processed}`);
+  console.log(`   Assignments FINALIZADAS creadas:    ${created}`);
+  console.log(`   Saltados por NLD ya en POF actual:  ${skippedNldMatch}`);
+  console.log(`   Saltados duplicados (dentro JSON):  ${skippedDuplicate}`);
+  console.log(`   Sin agente en DB:                   ${skippedNoAgent}`);
+  console.log(`   Sin DNI:                            ${skippedNoDni}`);
+  console.log(`   Sin toma de posesión:               ${skippedNoToma}`);
 
   if (sample.length > 0) {
     console.log('\n🔎 Muestra:');

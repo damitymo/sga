@@ -51,6 +51,9 @@ type MecPrestacion = {
   cargo?: string;
   motivoPrestacionIngresoDescripcion?: string;
   motivoPrestacionEgresoDescripcion?: string;
+  designacionNormaLegal?: string | null; // "ME-R-07621/19"
+  ceseNormaLegal?: string | null;
+  licenciaNormaLegalAprobacion?: string | null;
 };
 
 type MecPlaza = {
@@ -272,6 +275,10 @@ async function main() {
         pr.tieneSalidaDefinitiva ? 'Salida definitiva' : null,
       ].filter(Boolean) as string[];
 
+      // Normalizamos la NLD: viene tipo "ME-R-07621/19" con espacios al final.
+      const designacionNld = (pr.designacionNormaLegal || '').trim() || null;
+      const ceseNld = (pr.ceseNormaLegal || '').trim() || null;
+
       const payload: Partial<AgentAssignment> = {
         agent_id: agent.id,
         pof_position_id: pof.id,
@@ -280,7 +287,18 @@ async function main() {
         assignment_date: ingreso ? (ingreso as unknown as Date) : null,
         end_date: egreso ? (egreso as unknown as Date) : null,
         status,
-        notes: notesParts.length > 0 ? notesParts.join(' | ') : null,
+        legal_norm: designacionNld,
+        resolution_number: designacionNld,
+        notes:
+          [
+            ...notesParts,
+            ceseNld ? `NLD cese: ${ceseNld}` : null,
+            pr.licenciaNormaLegalAprobacion
+              ? `NLD licencia: ${pr.licenciaNormaLegalAprobacion}`
+              : null,
+          ]
+            .filter(Boolean)
+            .join(' | ') || null,
       };
 
       if (commit && pof.id > 0 && agent.id > 0) {
