@@ -121,21 +121,13 @@ async function main() {
   }
   console.log(`👥 Agentes en DB: ${allAgents.length}`);
 
-  // 1) Borrar todos los FDs importados previamente para que el script sea
-  // idempotente. Los identificamos por: pof_position_id IS NULL AND
-  // resolution_number LIKE 'FD-%' AND notes LIKE '%formularioDesignacionId%'.
-  if (commit) {
-    const deleted = await assignRepo
-      .createQueryBuilder()
-      .delete()
-      .where('pof_position_id IS NULL')
-      .andWhere("resolution_number LIKE 'FD-%'")
-      .andWhere("notes LIKE '%formularioDesignacionId%'")
-      .execute();
-    console.log(
-      `🧹 FDs previos borrados: ${deleted.affected ?? 0} (idempotencia)`,
-    );
-  }
+  // Idempotencia: upsert por (agent_id + asunto). NO borramos nada — si
+  // el FD ya existía, lo actualizamos; si no, lo insertamos. Antes
+  // borrábamos todos los FDs antes de re-importar pero eso destruía los
+  // FDs de OTROS CUEs cuando corríamos el script con un JSON parcial.
+  console.log(
+    `📝 Idempotencia por upsert: cada FD se identifica por (agent_id + asunto).`,
+  );
 
   // 2) Pre-cargar las assignments con plaza vinculada (no FD) para detectar
   // duplicados por norma legal: si un FD tiene la misma NLD que una
@@ -168,16 +160,37 @@ async function main() {
     `🔎 NLDs ya cubiertas por prestaciones con plaza: ${assignmentsConPlaza.length}`,
   );
 
+  // Pre-cargar todos los FDs ya existentes para hacer upsert eficiente.
+  const existingFDs = await assignRepo.find({
+    where: { resolution_number: Not(IsNull()) },
+    select: [
+      'id',
+      'agent_id',
+      'resolution_number',
+      'pof_position_id',
+      'notes',
+    ],
+  });
+  const existingByKey = new Map<string, { id: number; pof_position_id: number | null }>();
+  for (const ex of existingFDs) {
+    if (ex.resolution_number?.startsWith('FD-')) {
+      existingByKey.set(`${ex.agent_id}|${ex.resolution_number}`, {
+        id: ex.id,
+        pof_position_id: ex.pof_position_id,
+      });
+    }
+  }
+  console.log(`🔎 FDs existentes en DB (para upsert): ${existingByKey.size}`);
+
   let processed = 0;
   let created = 0;
-  let skippedDuplicate = 0;
+  let updated = 0;
   let skippedNldMatch = 0;
   let skippedNoAgent = 0;
   let skippedNoDni = 0;
   let skippedNoToma = 0;
   let agentsCreated = 0;
   const sample: string[] = [];
-  const existingByKey = new Set<string>();
 
   for (const fd of fds) {
     processed++;
@@ -224,10 +237,7 @@ async function main() {
 
     const fdAsunto = (fd.asuntoConMascara || '').trim();
     const key = `${agent.id}|${fdAsunto}`;
-    if (existingByKey.has(key)) {
-      skippedDuplicate++;
-      continue;
-    }
+    const existingFd = existingByKey.get(key);
 
     // Si la NLD del FD ya está cubierta por una assignment con plaza,
     // omitir: es la misma designación, ya representada con datos completos.
@@ -267,12 +277,27 @@ async function main() {
       notes: noteParts.join(' | ') || null,
     };
 
-    if (commit) {
-      await assignRepo.save(assignRepo.create(payload));
+    if (existingFd) {
+      // UPDATE: el FD ya existía (lo creamos en una corrida anterior).
+      // Preservamos pof_position_id si ya estaba enriquecido (por enrich).
+      const updatePayload = { ...payload };
+      if (existingFd.pof_position_id !== null) {
+        delete updatePayload.pof_position_id;
+      }
+      if (commit) {
+        await assignRepo.update({ id: existingFd.id }, updatePayload);
+      }
+      updated++;
+    } else {
+      // INSERT: FD nuevo.
+      if (commit) {
+        const saved = await assignRepo.save(assignRepo.create(payload));
+        existingByKey.set(key, { id: saved.id, pof_position_id: null });
+      } else {
+        existingByKey.set(key, { id: -1, pof_position_id: null });
+      }
+      created++;
     }
-
-    created++;
-    existingByKey.add(key);
 
     if (sample.length < 5 || /TYMOSZUK/i.test(fd.ingresoPersonaApellido || '')) {
       sample.push(
@@ -285,9 +310,9 @@ async function main() {
 
   console.log('\n📈 Resultado:');
   console.log(`   FDs procesados:                     ${processed}`);
-  console.log(`   Assignments FINALIZADAS creadas:    ${created}`);
+  console.log(`   Assignments creadas:                ${created}`);
+  console.log(`   Assignments actualizadas:           ${updated}`);
   console.log(`   Saltados por NLD ya en POF actual:  ${skippedNldMatch}`);
-  console.log(`   Saltados duplicados (dentro JSON):  ${skippedDuplicate}`);
   console.log(`   Sin agente en DB:                   ${skippedNoAgent}`);
   console.log(`   Agentes creados (placeholder):      ${agentsCreated}`);
   console.log(`   Sin DNI:                            ${skippedNoDni}`);

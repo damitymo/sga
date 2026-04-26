@@ -17,6 +17,21 @@ export class PofPosition {
   @Column({ type: 'varchar' })
   plaza_number!: string;
 
+  /**
+   * CUE del establecimiento al que pertenece la plaza. La sede principal
+   * de la ETVV es '1800697-00', el anexo Ext. Áulica es '1800697-03'. El
+   * `plaza_number` solo es único DENTRO del mismo establecimiento.
+   */
+  @Column({ type: 'varchar', nullable: true })
+  establecimiento_cue!: string | null;
+
+  /**
+   * `plazaId` interno del MEC. Es único globalmente entre todos los CUEs.
+   * Se usa como llave de match al importar desde el JSON oficial.
+   */
+  @Column({ type: 'int', nullable: true })
+  plaza_mec_id!: number | null;
+
   @Column({ type: 'varchar', nullable: true })
   subject_name!: string | null;
 

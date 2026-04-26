@@ -59,6 +59,11 @@ type MecPrestacion = {
 type MecPlaza = {
   plazaIdentificacion?: string; // "20-006"
   identificadorDescripcionCompleto?: string;
+  plazaId?: number; // ID interno único del MEC (entre CUEs)
+  cueCompleto?: string; // "1800697-00"
+  cue?: string;
+  anexo?: string;
+  establecimientoNombre?: string;
   prestaciones?: MecPrestacion[];
 };
 
@@ -130,7 +135,13 @@ type Stats = {
 async function main() {
   const args = process.argv.slice(2);
   const commit = args.includes('--commit');
-  const fileArg = args.find((a) => !a.startsWith('--'));
+  // --cue=1800697-00 (default) o 1800697-03 para anexo
+  const cueArg = args.find((a) => a.startsWith('--cue='));
+  const cueDefault = cueArg ? cueArg.split('=')[1] : '1800697-00';
+
+  const fileArg = args.find(
+    (a) => !a.startsWith('--') && /\.json$/i.test(a),
+  );
   const filePath = fileArg
     ? path.isAbsolute(fileArg)
       ? fileArg
@@ -146,6 +157,7 @@ async function main() {
   console.log(
     `⚙️  Modo: ${commit ? '🔴 COMMIT (escribe en la DB)' : '🟢 DRY-RUN (no escribe nada)'}`,
   );
+  console.log(`🏛️  CUE de las plazas en este JSON: ${cueDefault}`);
 
   const raw = fs.readFileSync(filePath, 'utf8');
   const json = JSON.parse(raw) as MecResponse;
@@ -188,19 +200,62 @@ async function main() {
   const sampleAssignments: string[] = [];
   const plazasSinMatch: string[] = [];
 
+  // Cache de pof_positions: por mec_id y por (plaza_number, cue)
+  const allPofs = await pofRepo.find();
+  const pofByMecId = new Map<number, PofPosition>();
+  const pofByNumberCue = new Map<string, PofPosition>();
+  for (const p of allPofs) {
+    if (p.plaza_mec_id) pofByMecId.set(p.plaza_mec_id, p);
+    if (p.plaza_number) {
+      pofByNumberCue.set(
+        `${p.plaza_number}|${p.establecimiento_cue ?? '1800697-00'}`,
+        p,
+      );
+    }
+  }
+
   for (const plaza of plazas) {
     const plazaNumber = (plaza.plazaIdentificacion || '').trim();
     if (!plazaNumber) continue;
 
-    // Buscar pof_position
-    const pof = await pofRepo.findOne({
-      where: { plaza_number: plazaNumber },
-    });
+    const cuePlaza = (plaza.cueCompleto || cueDefault).trim();
+    const mecId = plaza.plazaId;
+
+    // Match: primero por plaza_mec_id (único entre CUEs), después por
+    // (plaza_number, establecimiento_cue). Si no existe en DB, lo creamos.
+    let pof: PofPosition | null = null;
+    if (mecId) pof = pofByMecId.get(mecId) ?? null;
+    if (!pof) {
+      pof = pofByNumberCue.get(`${plazaNumber}|${cuePlaza}`) ?? null;
+    }
 
     if (!pof) {
-      stats.plazas_sin_match++;
-      plazasSinMatch.push(plazaNumber);
-      continue;
+      // Crear pof_position nueva (caso de plazas que vienen del CUE 03 y no
+      // estaban antes, o plazas nuevas cualquiera).
+      const created = pofRepo.create({
+        plaza_number: plazaNumber,
+        plaza_mec_id: mecId ?? null,
+        establecimiento_cue: cuePlaza,
+        is_active: true,
+        notes: `Plaza creada por import-mec-historico (CUE ${cuePlaza}).`,
+      });
+      if (commit) {
+        pof = await pofRepo.save(created);
+      } else {
+        pof = { ...created, id: -1 } as PofPosition;
+      }
+      // Actualizar caches para próximas iteraciones
+      if (mecId) pofByMecId.set(mecId, pof);
+      pofByNumberCue.set(`${plazaNumber}|${cuePlaza}`, pof);
+    } else {
+      // Si la pof ya existía pero no tenía plaza_mec_id o cue, los completamos
+      const updates: Partial<PofPosition> = {};
+      if (mecId && !pof.plaza_mec_id) updates.plaza_mec_id = mecId;
+      if (!pof.establecimiento_cue) updates.establecimiento_cue = cuePlaza;
+      if (Object.keys(updates).length > 0 && commit) {
+        await pofRepo.update(pof.id, updates);
+        Object.assign(pof, updates);
+      }
     }
     stats.plazas_matcheadas++;
 

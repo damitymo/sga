@@ -161,7 +161,12 @@ async function main() {
   const args = process.argv.slice(2);
   const commit = args.includes('--commit');
   const createMissingPlazas = args.includes('--create-missing-plazas');
-  const fileArg = args.find((a) => !a.startsWith('--'));
+  // CUE de las plazas que vienen en el JSON (default: sede principal).
+  const cueArg = args.find((a) => a.startsWith('--cue='));
+  const cueDefault = cueArg ? cueArg.split('=')[1] : '1800697-00';
+  const fileArg = args.find(
+    (a) => !a.startsWith('--') && /\.json$/i.test(a),
+  );
   const filePath = fileArg
     ? path.isAbsolute(fileArg)
       ? fileArg
@@ -177,6 +182,7 @@ async function main() {
   console.log(
     `⚙️  Modo: ${commit ? '🔴 COMMIT (escribe en DB)' : '🟢 DRY-RUN'}`,
   );
+  console.log(`🏛️  CUE de las plazas: ${cueDefault}`);
   if (createMissingPlazas) {
     console.log(
       `🆕 --create-missing-plazas: crea PofPosition stub si la plaza no existe`,
@@ -200,11 +206,25 @@ async function main() {
     getRepositoryToken(AgentAssignment),
   );
 
-  // Cache de plazas por número
+  // Cache de plazas. La key principal es (plaza_number, establecimiento_cue),
+  // pero también guardamos un fallback solo por plaza_number para compat
+  // con assignments viejas que no tengan CUE.
   const allPofs = await pofRepo.find();
-  const pofByNumber = new Map<string, PofPosition>();
+  const pofByNumberCue = new Map<string, PofPosition>();
+  const pofByNumberOnly = new Map<string, PofPosition>();
   for (const p of allPofs) {
-    if (p.plaza_number) pofByNumber.set(p.plaza_number, p);
+    if (p.plaza_number) {
+      pofByNumberCue.set(
+        `${p.plaza_number}|${p.establecimiento_cue ?? cueDefault}`,
+        p,
+      );
+      // Solo agregamos al mapa "solo por número" si no hay colisión, para
+      // evitar ambigüedad. En caso de colisión, el match tiene que pasar
+      // por (number, cue).
+      if (!pofByNumberOnly.has(p.plaza_number)) {
+        pofByNumberOnly.set(p.plaza_number, p);
+      }
+    }
   }
   console.log(`🏛️  Plazas en pof_positions: ${allPofs.length}`);
 
@@ -251,7 +271,10 @@ async function main() {
     // Tomamos la primera plaza (en general es 1 sola por FD)
     const firstPlaza = plazasParsed[0];
     const plazaNumber = firstPlaza.plaza.trim();
-    let pof = pofByNumber.get(plazaNumber);
+    // Match: primero (plaza_number, cueDefault), luego solo por plaza_number.
+    let pof =
+      pofByNumberCue.get(`${plazaNumber}|${cueDefault}`) ||
+      pofByNumberOnly.get(plazaNumber);
 
     if (!pof) {
       if (!createMissingPlazas) {
@@ -262,6 +285,7 @@ async function main() {
       // Crear stub de PofPosition con datos del FD
       const stub = pofRepo.create({
         plaza_number: plazaNumber,
+        establecimiento_cue: cueDefault,
         subject_name: firstPlaza.asignatura || null,
         modality: firstPlaza.asignatura || null,
         course: firstPlaza.anio || null,
@@ -278,7 +302,8 @@ async function main() {
       } else {
         pof = { ...stub, id: -1 } as PofPosition;
       }
-      pofByNumber.set(plazaNumber, pof);
+      pofByNumberCue.set(`${plazaNumber}|${cueDefault}`, pof);
+      if (!pofByNumberOnly.has(plazaNumber)) pofByNumberOnly.set(plazaNumber, pof);
       missingPlazas.add(plazaNumber); // tracking igual
     }
 
