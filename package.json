@@ -26,6 +26,7 @@
     "import:revista-pof": "ts-node -r tsconfig-paths/register src/scripts/import-revista-from-pof.ts",
     "import:mec-historico": "ts-node -r tsconfig-paths/register src/scripts/import-mec-historico.ts",
     "import:mec-designaciones": "ts-node -r tsconfig-paths/register src/scripts/import-mec-designaciones.ts",
+    "enrich:mec-designaciones": "ts-node -r tsconfig-paths/register src/scripts/enrich-mec-designaciones.ts",
     "import:attendance2025": "ts-node -r tsconfig-paths/register src/scripts/import-attendance-2025.ts",
     "typeorm": "typeorm-ts-node-commonjs",
     "migration:create": "typeorm-ts-node-commonjs migration:create",
