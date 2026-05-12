@@ -324,11 +324,21 @@ async function main() {
       .filter(Boolean)
       .join(' | ');
 
-    // Si tiene fecha hasta y ya pasó, FINALIZADA. Si no, ACTIVA.
-    // Si no tiene fecha hasta, mantenemos el status actual.
-    let newStatus = assignment.status;
-    if (hastaIso) {
+    // Reglas de status:
+    //   - Sin fecha hasta → ACTIVA (sigue vigente, sin cese registrado).
+    //   - Hasta FUTURA → ACTIVA (cese proyectado, hoy todavía está en la plaza).
+    //   - Hasta PASADA → FINALIZADA (ya cesó).
+    // El bug anterior marcaba siempre FINALIZADA si había fecha hasta, lo
+    // que escondía suplencias actuales con cese futuro (ej. 09/03/2026 →
+    // 05/03/2030 hoy debería estar ACTIVA).
+    const hoyIso = new Date().toISOString().slice(0, 10);
+    let newStatus: 'ACTIVA' | 'FINALIZADA';
+    if (!hastaIso) {
+      newStatus = 'ACTIVA';
+    } else if (hastaIso < hoyIso) {
       newStatus = 'FINALIZADA';
+    } else {
+      newStatus = 'ACTIVA';
     }
 
     const patch: Partial<AgentAssignment> = {
