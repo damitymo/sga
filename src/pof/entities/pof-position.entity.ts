@@ -65,6 +65,27 @@ export class PofPosition {
   @Column({ type: 'varchar', nullable: true })
   modality!: string | null;
 
+  // Campos espejo del POF del MEC para que la pantalla /pof del SGA
+  // muestre exactamente lo mismo que el modal "Detalle Plaza" de Gestión.
+
+  @Column({ type: 'varchar', nullable: true })
+  sub_organizacion!: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  tipo_plaza_estado!: string | null;
+
+  @Column({ type: 'date', nullable: true })
+  fecha_creacion!: Date | null;
+
+  @Column({ type: 'date', nullable: true })
+  fecha_vacante!: Date | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  motivo_vacante!: string | null;
+
+  @Column({ type: 'date', nullable: true })
+  fecha_ultimo_movimiento!: Date | null;
+
   @Column({ type: 'text', nullable: true })
   notes!: string | null;
 

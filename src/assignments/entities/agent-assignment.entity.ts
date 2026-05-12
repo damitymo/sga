@@ -63,6 +63,30 @@ export class AgentAssignment {
   @Column({ type: 'varchar', default: 'ACTIVA' })
   status!: string;
 
+  // Campos espejo del MEC para enriquecer la situación de revista del docente
+  // con los mismos datos que muestra el modal "Detalle Plaza" de Gestión.
+
+  @Column({ type: 'varchar', nullable: true })
+  escalafon!: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  categoria!: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  cargo_codigo!: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  cargo_descripcion!: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  motivo_ingreso!: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  motivo_egreso!: string | null;
+
+  @Column({ type: 'int', nullable: true })
+  puesto_laboral!: number | null;
+
   @Column({ type: 'text', nullable: true })
   notes!: string | null;
 

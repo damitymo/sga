@@ -329,6 +329,14 @@ export class AgentsService {
         a.legal_norm ||
         null,
       resolution_number: a.resolution_number,
+      // Campos del MEC para mostrar detalle de la prestación al estilo Gestión
+      escalafon: a.escalafon,
+      categoria: a.categoria,
+      cargo_codigo: a.cargo_codigo,
+      cargo_descripcion: a.cargo_descripcion,
+      motivo_ingreso: a.motivo_ingreso,
+      motivo_egreso: a.motivo_egreso,
+      puesto_laboral: a.puesto_laboral,
       notes: a.notes,
       pof_position: a.pof_position
         ? {
@@ -340,6 +348,9 @@ export class AgentsService {
             course: a.pof_position.course,
             division: a.pof_position.division,
             shift: a.pof_position.shift,
+            // Datos adicionales de la plaza
+            sub_organizacion: a.pof_position.sub_organizacion,
+            tipo_plaza_estado: a.pof_position.tipo_plaza_estado,
           }
         : null,
     });

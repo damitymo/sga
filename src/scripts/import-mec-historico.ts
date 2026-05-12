@@ -48,12 +48,15 @@ type MecPrestacion = {
   situacionRevistaMnemo?: string; // T/I/S
   situacionRevistaDescripcion?: string;
   escalafon?: string;
-  cargo?: string;
+  cargo?: string; // descripción
+  cargoMnemo?: string; // código tipo "05-109"
   motivoPrestacionIngresoDescripcion?: string;
   motivoPrestacionEgresoDescripcion?: string;
   designacionNormaLegal?: string | null; // "ME-R-07621/19"
   ceseNormaLegal?: string | null;
   licenciaNormaLegalAprobacion?: string | null;
+  categoriaDescripcion?: string | null;
+  puestoLaboral?: number | null;
 };
 
 type MecPlaza = {
@@ -64,6 +67,13 @@ type MecPlaza = {
   cue?: string;
   anexo?: string;
   establecimientoNombre?: string;
+  subOrganizacionMnemo?: string | null;
+  tipoPlazaEstadoMnemo?: string | null; // "N" / "V" / "D" / etc
+  tipoPlazaEstadoDescripcion?: string | null;
+  plazaFechaCreacion?: string | null; // ISO o DD/MM/YYYY
+  vacanteFecha?: string | null;
+  vacanteMotivoPrestacionDescripcion?: string | null;
+  plazaFechaUltimoMovimiento?: string | null;
   prestaciones?: MecPrestacion[];
 };
 
@@ -96,6 +106,22 @@ function parseDdMmYyyy(s: string | undefined | null): string | null {
   if (year < 100) year += year >= 50 ? 1900 : 2000;
   if (month < 1 || month > 12 || day < 1 || day > 31) return null;
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+// Acepta ISO (YYYY-MM-DD), DD/MM/YYYY o el formato .NET "/Date(123...)/"
+function parseAnyDate(s: string | undefined | null): string | null {
+  if (!s) return null;
+  const str = String(s).trim();
+  // ISO directo
+  if (/^\d{4}-\d{2}-\d{2}/.test(str)) return str.slice(0, 10);
+  // .NET /Date(1735689600000)/
+  const m = str.match(/\/Date\((-?\d+)\)\//);
+  if (m) {
+    const d = new Date(Number(m[1]));
+    if (!Number.isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+  }
+  // DD/MM/YYYY
+  return parseDdMmYyyy(str);
 }
 
 function normalizeCharacterType(mnemo: string | undefined | null): string | null {
@@ -229,14 +255,35 @@ async function main() {
       pof = pofByNumberCue.get(`${plazaNumber}|${cuePlaza}`) ?? null;
     }
 
+    // Construir el payload completo de pof_position con los campos espejo
+    // del MEC. Esto sirve tanto para crear nuevas plazas como para refrescar
+    // las existentes en cada corrida (idempotente).
+    const pofPayload: Partial<PofPosition> = {
+      plaza_number: plazaNumber,
+      plaza_mec_id: mecId ?? null,
+      establecimiento_cue: cuePlaza,
+      sub_organizacion: plaza.subOrganizacionMnemo ?? null,
+      tipo_plaza_estado:
+        plaza.tipoPlazaEstadoDescripcion ?? plaza.tipoPlazaEstadoMnemo ?? null,
+      fecha_creacion: (parseAnyDate(plaza.plazaFechaCreacion) as unknown as
+        | Date
+        | null),
+      fecha_vacante: (parseAnyDate(plaza.vacanteFecha) as unknown as
+        | Date
+        | null),
+      motivo_vacante: plaza.vacanteMotivoPrestacionDescripcion ?? null,
+      fecha_ultimo_movimiento: (parseAnyDate(
+        plaza.plazaFechaUltimoMovimiento,
+      ) as unknown as Date | null),
+      // Marcar desafectada según tipo_plaza_estado.
+      is_active: !/desafect/i.test(plaza.tipoPlazaEstadoDescripcion ?? ''),
+    };
+
     if (!pof) {
       // Crear pof_position nueva (caso de plazas que vienen del CUE 03 y no
       // estaban antes, o plazas nuevas cualquiera).
       const created = pofRepo.create({
-        plaza_number: plazaNumber,
-        plaza_mec_id: mecId ?? null,
-        establecimiento_cue: cuePlaza,
-        is_active: true,
+        ...pofPayload,
         notes: `Plaza creada por import-mec-historico (CUE ${cuePlaza}).`,
       });
       if (commit) {
@@ -248,13 +295,10 @@ async function main() {
       if (mecId) pofByMecId.set(mecId, pof);
       pofByNumberCue.set(`${plazaNumber}|${cuePlaza}`, pof);
     } else {
-      // Si la pof ya existía pero no tenía plaza_mec_id o cue, los completamos
-      const updates: Partial<PofPosition> = {};
-      if (mecId && !pof.plaza_mec_id) updates.plaza_mec_id = mecId;
-      if (!pof.establecimiento_cue) updates.establecimiento_cue = cuePlaza;
-      if (Object.keys(updates).length > 0 && commit) {
-        await pofRepo.update(pof.id, updates);
-        Object.assign(pof, updates);
+      // Refrescamos siempre los campos espejo del MEC (idempotente).
+      if (commit) {
+        await pofRepo.update(pof.id, pofPayload);
+        Object.assign(pof, pofPayload);
       }
     }
     stats.plazas_matcheadas++;
@@ -344,13 +388,26 @@ async function main() {
         status,
         legal_norm: designacionNld,
         resolution_number: designacionNld,
+        // Campos espejo del MEC para detalle de la prestación
+        escalafon: pr.escalafon?.trim() || null,
+        categoria: pr.categoriaDescripcion?.trim() || null,
+        cargo_codigo: pr.cargoMnemo?.trim() || null,
+        cargo_descripcion: pr.cargo?.trim() || null,
+        motivo_ingreso: pr.motivoPrestacionIngresoDescripcion?.trim() || null,
+        motivo_egreso: pr.motivoPrestacionEgresoDescripcion?.trim() || null,
+        puesto_laboral:
+          pr.puestoLaboral !== null && pr.puestoLaboral !== undefined
+            ? Number(pr.puestoLaboral) || null
+            : null,
         notes:
           [
-            ...notesParts,
             ceseNld ? `NLD cese: ${ceseNld}` : null,
             pr.licenciaNormaLegalAprobacion
               ? `NLD licencia: ${pr.licenciaNormaLegalAprobacion}`
               : null,
+            pr.tieneLicencia ? 'Con licencia' : null,
+            pr.tieneSalidaTransitoria ? 'Salida transitoria' : null,
+            pr.tieneSalidaDefinitiva ? 'Salida definitiva' : null,
           ]
             .filter(Boolean)
             .join(' | ') || null,
