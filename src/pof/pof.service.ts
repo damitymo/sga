@@ -11,6 +11,7 @@ type PofFilters = {
   docente?: string;
   materia?: string;
   curso?: string;
+  cursoId?: number;
 };
 
 type Holder = {
@@ -153,6 +154,10 @@ export class PofService {
 
     if (filters?.curso?.trim()) {
       where.course = ILike(`%${filters.curso.trim()}%`);
+    }
+
+    if (filters?.cursoId) {
+      where.curso_id = filters.cursoId;
     }
 
     const positions = await this.pofRepository.find({

@@ -9,6 +9,7 @@ import {
 import { AgentAssignment } from '../../assignments/entities/agent-assignment.entity';
 import { AttendanceRecord } from '../../attendance/entities/attendance-record.entity';
 import { RevistaRecord } from '../../revista/entities/revista-record.entity';
+import { License } from '../../licenses/entities/license.entity';
 
 @Entity('agents')
 export class Agent {
@@ -92,6 +93,9 @@ export class Agent {
 
   @OneToMany(() => RevistaRecord, (revista) => revista.agent)
   revista_records!: RevistaRecord[];
+
+  @OneToMany(() => License, (license) => license.agent)
+  licenses!: License[];
 
   @CreateDateColumn({ type: 'timestamp' })
   created_at!: Date;

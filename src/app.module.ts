@@ -8,6 +8,10 @@ import { PofModule } from './pof/pof.module';
 import { AssignmentsModule } from './assignments/assignments.module';
 import { AttendanceModule } from './attendance/attendance.module';
 import { RevistaModule } from './revista/revista.module';
+import { LicensesModule } from './licenses/licenses.module';
+import { EstablecimientosModule } from './establecimientos/establecimientos.module';
+import { OrientacionesModule } from './orientaciones/orientaciones.module';
+import { CursosModule } from './cursos/cursos.module';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { dataSourceOptions } from './data-source';
@@ -40,6 +44,10 @@ import { validateEnv } from './config/env.validation';
     AssignmentsModule,
     AttendanceModule,
     RevistaModule,
+    LicensesModule,
+    EstablecimientosModule,
+    OrientacionesModule,
+    CursosModule,
     UsersModule,
     AuthModule,
   ],

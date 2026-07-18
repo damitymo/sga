@@ -2,12 +2,15 @@ import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
+  ManyToOne,
+  JoinColumn,
   CreateDateColumn,
   UpdateDateColumn,
   OneToMany,
 } from 'typeorm';
 import { AgentAssignment } from '../../assignments/entities/agent-assignment.entity';
 import { RevistaRecord } from '../../revista/entities/revista-record.entity';
+import { Curso } from '../../cursos/entities/curso.entity';
 
 @Entity('pof_positions')
 export class PofPosition {
@@ -46,6 +49,21 @@ export class PofPosition {
 
   @Column({ type: 'varchar', nullable: true })
   shift!: string | null;
+
+  /**
+   * FK opcional al Curso real (Organigrama institucional). Es ADITIVA:
+   * `course`/`division`/`establecimiento_cue` siguen siendo la fuente de
+   * verdad para toda la UI existente (revista, planilla impresa, etc.) y
+   * no se tocan. `curso_id` se completa vía backfill
+   * (`scripts/backfill-cursos-from-pof.ts`) y se usa solo para agrupar por
+   * curso en /organigrama y /cursos.
+   */
+  @Column({ type: 'int', nullable: true })
+  curso_id!: number | null;
+
+  @ManyToOne(() => Curso, { onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'curso_id' })
+  curso!: Curso | null;
 
   @Column({ type: 'date', nullable: true })
   start_date!: Date | null;

@@ -42,6 +42,7 @@ export class PofController {
     @Query('docente') docente?: string,
     @Query('materia') materia?: string,
     @Query('curso') curso?: string,
+    @Query('cursoId') cursoId?: string,
   ) {
     const user = req.user;
 
@@ -56,6 +57,7 @@ export class PofController {
       docente,
       materia,
       curso,
+      cursoId: cursoId ? Number(cursoId) : undefined,
     });
   }
 

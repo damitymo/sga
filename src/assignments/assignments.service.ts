@@ -191,7 +191,10 @@ export class AssignmentsService {
   }
 
   findAll() {
+    // Con relations: la pantalla de "Cargos y asignaciones" necesita
+    // materia/curso/turno (pof_position) y nombre/DNI (agent) sin N+1.
     return this.assignmentsRepository.find({
+      relations: { agent: true, pof_position: true },
       order: { id: 'DESC' },
     });
   }
@@ -199,6 +202,7 @@ export class AssignmentsService {
   findByAgent(agentId: number) {
     return this.assignmentsRepository.find({
       where: { agent_id: agentId },
+      relations: { pof_position: true },
       order: { id: 'DESC' },
     });
   }

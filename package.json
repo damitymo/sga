@@ -28,6 +28,8 @@
     "import:mec-designaciones": "ts-node -r tsconfig-paths/register src/scripts/import-mec-designaciones.ts",
     "enrich:mec-designaciones": "ts-node -r tsconfig-paths/register src/scripts/enrich-mec-designaciones.ts",
     "import:attendance2025": "ts-node -r tsconfig-paths/register src/scripts/import-attendance-2025.ts",
+    "seed:license-types": "ts-node -r tsconfig-paths/register src/scripts/seed-license-types.ts",
+    "backfill:cursos": "ts-node -r tsconfig-paths/register src/scripts/backfill-cursos-from-pof.ts",
     "typeorm": "typeorm-ts-node-commonjs",
     "migration:create": "typeorm-ts-node-commonjs migration:create",
     "migration:generate": "typeorm-ts-node-commonjs migration:generate -d src/data-source.ts",
