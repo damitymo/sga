@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { FindOptionsWhere, Repository } from 'typeorm';
+import * as XLSX from 'xlsx';
 import {
   AttendanceConditionType,
   AttendanceRecord,
@@ -44,6 +45,7 @@ type AttendanceStats = {
  */
 export type AttendanceGridDay = {
   day: number;
+  id: number | null;
   raw_code: string | null;
   status: string | null;
   observation: string | null;
@@ -354,6 +356,40 @@ export class AttendanceService {
     };
   }
 
+  /** Excel de inasistencias/novedades, mismos filtros que findAll(). */
+  async exportToExcel(filters?: FindAttendanceFilters): Promise<Buffer> {
+    const where: FindOptionsWhere<AttendanceRecord> = {};
+
+    if (filters?.agentId) where.agent_id = filters.agentId;
+    if (filters?.year) where.year = filters.year;
+    if (filters?.month) where.month = filters.month;
+    if (filters?.status) where.status = filters.status;
+    if (filters?.conditionType) where.condition_type = filters.conditionType;
+    if (filters?.shift) where.shift = filters.shift;
+
+    const records = await this.attendanceRepository.find({
+      where,
+      relations: { agent: true },
+      order: { year: 'DESC', month: 'DESC', day: 'DESC', id: 'DESC' },
+    });
+
+    const rows = records.map((record) => ({
+      Docente: record.agent?.full_name ?? record.source_agent_name ?? '',
+      DNI: record.agent?.dni ?? record.source_dni ?? '',
+      Fecha: record.attendance_date,
+      Estado: record.status,
+      Código: record.raw_code ?? '',
+      Turno: record.shift ?? '',
+      Observación: record.observation ?? '',
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Inasistencias');
+
+    return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
+  }
+
   /**
    * Devuelve la asistencia anual de un agente en formato grilla del libro
    * oficial del MEC. Combina tres fuentes:
@@ -416,6 +452,7 @@ export class AttendanceService {
         if (d > lastDay) {
           days.push({
             day: d,
+            id: null,
             raw_code: null,
             status: null,
             observation: null,
@@ -425,6 +462,7 @@ export class AttendanceService {
 
         days.push({
           day: d,
+          id: record?.id ?? null,
           raw_code: code,
           status: record?.status ?? null,
           observation: record?.observation ?? null,

@@ -4,12 +4,14 @@ import {
   Delete,
   ForbiddenException,
   Get,
+  Header,
   Param,
   ParseIntPipe,
   Patch,
   Post,
   Query,
   Request,
+  StreamableFile,
   UseGuards,
 } from '@nestjs/common';
 import { AttendanceService } from './attendance.service';
@@ -73,6 +75,29 @@ export class AttendanceController {
     }
 
     return this.attendanceService.findAll(filters);
+  }
+
+  @Roles('ADMIN', 'ADMINISTRATIVO')
+  @Get('export')
+  @Header(
+    'Content-Type',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  )
+  @Header('Content-Disposition', 'attachment; filename="inasistencias.xlsx"')
+  async exportExcel(
+    @Query('agentId') agentId?: string,
+    @Query('year') year?: string,
+    @Query('month') month?: string,
+    @Query('status') status?: string,
+  ) {
+    const buffer = await this.attendanceService.exportToExcel({
+      agentId: agentId ? Number(agentId) : undefined,
+      year: year ? Number(year) : undefined,
+      month: month ? Number(month) : undefined,
+      status: status ? (status as AttendanceStatus) : undefined,
+    });
+
+    return new StreamableFile(buffer);
   }
 
   @Get('me')

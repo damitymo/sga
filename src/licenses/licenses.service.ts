@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, Repository } from 'typeorm';
+import * as XLSX from 'xlsx';
 import { License } from './entities/license.entity';
 
 type LicenseFilters = {
@@ -99,5 +100,27 @@ export class LicensesService {
 
   remove(id: number) {
     return this.licensesRepository.delete(id);
+  }
+
+  /** Excel de licencias, mismos filtros que findAll(). */
+  async exportToExcel(filters?: LicenseFilters): Promise<Buffer> {
+    const licenses = await this.findAll(filters);
+
+    const rows = licenses.map((license) => ({
+      Docente: license.agent?.full_name ?? '',
+      DNI: license.agent?.dni ?? '',
+      Artículo: license.license_type?.article ?? '',
+      Descripción: license.license_type?.description ?? '',
+      Desde: license.start_date,
+      Hasta: license.end_date,
+      Días: license.days_count,
+      Observaciones: license.observations ?? '',
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Licencias');
+
+    return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
   }
 }

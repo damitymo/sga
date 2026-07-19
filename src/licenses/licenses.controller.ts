@@ -4,12 +4,14 @@ import {
   Delete,
   ForbiddenException,
   Get,
+  Header,
   Param,
   ParseIntPipe,
   Patch,
   Post,
   Query,
   Request,
+  StreamableFile,
   UseGuards,
 } from '@nestjs/common';
 import { LicensesService } from './licenses.service';
@@ -50,6 +52,29 @@ export class LicensesController {
       year: year ? Number(year) : undefined,
       month: month ? Number(month) : undefined,
     });
+  }
+
+  @Roles('ADMIN', 'ADMINISTRATIVO')
+  @Get('export')
+  @Header(
+    'Content-Type',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  )
+  @Header('Content-Disposition', 'attachment; filename="licencias.xlsx"')
+  async exportExcel(
+    @Query('agentId') agentId?: string,
+    @Query('licenseTypeId') licenseTypeId?: string,
+    @Query('year') year?: string,
+    @Query('month') month?: string,
+  ) {
+    const buffer = await this.licensesService.exportToExcel({
+      agentId: agentId ? Number(agentId) : undefined,
+      licenseTypeId: licenseTypeId ? Number(licenseTypeId) : undefined,
+      year: year ? Number(year) : undefined,
+      month: month ? Number(month) : undefined,
+    });
+
+    return new StreamableFile(buffer);
   }
 
   @Get('agent/:agentId')
